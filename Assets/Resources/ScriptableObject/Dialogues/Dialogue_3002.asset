@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3bff7708aa6bd3c48ae6741ee80e4556, type: 3}
+  m_Name: Dialogue_3002
+  m_EditorClassIdentifier: 
+  id: 3002
+  dialogueLines:
+  - speakerID: 0
+    dialogueText: "\uB098\uB294 \uC544\uBB34 \uB9D0 \uC5C6\uC774 \uC2DD\uD0C1\uC73C\uB85C
+      \uD5A5\uD588\uB2E4.\n\uC774 \uB9C9\uB300\uD55C \uBD80 \uC55E\uC5D0\uC11C\uB294
+      \uAD73\uC774 \uCE5C\uC808\uD560 \uD544\uC694\uAC00 \uC5C6\uB2E4."
+  choices: []
