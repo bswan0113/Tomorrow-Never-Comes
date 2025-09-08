@@ -1,0 +1,11 @@
+dialogueKey,speakerID,dialogueText,choices
+Intro_01,Narrator,"(어두운 방. 시계 소리만이 울리고 있다.)",
+Intro_01,Narrator,"나는... 실패했다.",
+Intro_02,Protagonist,"여긴... 내 방이잖아? 분명 나는...",
+Intro_03,HeroineA,"야! 아직도 자고 있어? 오늘 중요한 날인거 잊었어?",
+Choice_01,HeroineA,"어때, 이제 정신이 좀 들어? 뭘 그렇게 멍하게 있어?","1. 지성을 발휘해 상황을 파악한다>Situation_Intellect|AddIntellect 10:AddEndurance -5;2. 매력으로 부드럽게 넘어간다>Situation_Charm|AddCharm 10;3. 그냥 넘어간다>Situation_Normal"
+Situation_Intellect,Protagonist,"(그래, 지금은 2회차 인생 1일차 오전 8시 15분. 그녀는 나를 깨우러 왔다.)",Ending_Choice
+Situation_Charm,Protagonist,"너처럼 예쁜 애가 깨워주니 정신이 번쩍 드네.",Ending_Choice
+Situation_Normal,Protagonist,"아무것도 아니야. 그냥 일어날게.",Ending_Choice
+Ending_Choice,HeroineA,"그래? 얼른 준비해!",End_Day|AdvanceToNextDay 1
+End_Day,Narrator,"그렇게 그의 새로운 하루가 시작되었다.",0

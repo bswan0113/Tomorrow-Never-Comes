@@ -1,0 +1,12 @@
+fileFormatVersion: 2
+guid: a3fe24996cb114247aab0cc27f1525f0
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 5cbbe11a43f948f7923f731b15436f4e, type: 3}
+  targetTypeAssemblyQualifiedName: CharacterData, Assembly-CSharp, Version=0.0.0.0,
+    Culture=neutral, PublicKeyToken=null

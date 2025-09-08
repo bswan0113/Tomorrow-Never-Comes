@@ -28,23 +28,38 @@ namespace Manager // 주인님의 패키징 구조에 맞춰 네임스페이스�
 
         private void LoadAllGameData()
         {
-            // 1. Resources 폴더 하위의 모든 GameData 상속 에셋을 불러옵니다.
-            var allData = Resources.LoadAll<GameData>(""); // 빈 문자열은 Resources 폴더 전체를 의미
+            // 1. Resources 폴더에서 '사진첩(DataImportContainer)'을 모두 불러옵니다.
+            var allContainers = Resources.LoadAll<DataImportContainer>("");
 
-            // 2. 중복 ID가 있는지 검사하고, 있다면 경고를 출력합니다.
+            // 2. 모든 사진첩에서 '사진(GameData)'들을 꺼내 하나의 리스트로 합칩니다.
+            var allData = new List<GameData>();
+            foreach (var container in allContainers)
+            {
+                foreach (var obj in container.importedObjects)
+                {
+                    if (obj is GameData gameData)
+                    {
+                        allData.Add(gameData);
+                    }
+                }
+            }
+
+            // --- 이하 로직은 기존 코드와 완전히 동일합니다 ---
+
+            // 3. 중복 ID가 있는지 검사하고, 있다면 경고를 출력합니다.
             var duplicates = allData.GroupBy(data => data.id)
-                                    .Where(group => group.Count() > 1)
-                                    .Select(group => group.Key);
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key);
 
             if (duplicates.Any())
             {
                 foreach (var duplicateId in duplicates)
                 {
-                    Debug.LogError($"[GameResourceManager] 중복된 ID({duplicateId})가 존재합니다! SO 에셋을 확인해주세요.");
+                    Debug.LogError($"[GameResourceManager] 중복된 ID({duplicateId})가 존재합니다! CSV 파일을 확인해주세요.");
                 }
             }
 
-            // 3. ID를 Key로 하여 Dictionary에 저장합니다.
+            // 4. ID를 Key로 하여 Dictionary에 저장합니다.
             gameDatabase = allData.ToDictionary(data => data.id, data => data);
             Debug.Log($"<color=cyan>{gameDatabase.Count}개의 게임 데이터를 로드했습니다.</color>");
         }

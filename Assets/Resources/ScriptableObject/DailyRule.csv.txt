@@ -1,0 +1,5 @@
+description,type,targetStatName,comparisonOperator,value
+지성 50 이상,StatCheck,Intellect,GreaterThan,50
+매력 100,StatCheck,Charm,EqualTo,100
+지구력 20 미만,StatCheck,Endurance,LessThan,20
+소지금 1000 이상,StatCheck,Money,GreaterThanOrEqualTo,1000

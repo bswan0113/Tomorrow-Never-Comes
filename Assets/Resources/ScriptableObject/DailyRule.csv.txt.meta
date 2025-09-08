@@ -1,0 +1,12 @@
+fileFormatVersion: 2
+guid: 14503d00c0bdceb45970b5bb21c8e5aa
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 5cbbe11a43f948f7923f731b15436f4e, type: 3}
+  targetTypeAssemblyQualifiedName: ConditionData, Assembly-CSharp, Version=0.0.0.0,
+    Culture=neutral, PublicKeyToken=null
