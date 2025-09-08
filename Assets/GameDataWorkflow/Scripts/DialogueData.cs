@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 /// <summary>
 /// 선택지 하나에 대한 정보를 담는 순수 데이터 클래스.
@@ -7,11 +8,11 @@ using UnityEngine;
 [System.Serializable]
 public class Choice
 {
-    [Tooltip("선택지 버튼에 표시될 텍스트입니다.")]
+    [TextArea(2, 5)]
     public string choiceText;
+    public int nextDialogueID; // 0이면 대화 종료
 
-    [Tooltip("이 선택지를 골랐을 때 이어질 다음 DialogueData의 ID. 0 이하면 대화가 종료됩니다.")]
-    public int nextDialogueID;
+    public List<ChoiceAction> actions; // 방금 추가했던 스탯 변경용 액션
 }
 
 /// <summary>
@@ -33,7 +34,7 @@ public class DialogueLine
 /// GameDataSO를 상속받아 고유 ID를 가집니다.
 /// </summary>
 [CreateAssetMenu(fileName = "New Dialogue", menuName = "Game Data/Dialogue Data")]
-public class DialogueData : GameDataSO
+public class DialogueData : GameData
 {
     [Header("대화 내용")]
     [Tooltip("이 대화에서 순차적으로 보여줄 대사들의 목록입니다.")]
@@ -42,4 +43,26 @@ public class DialogueData : GameDataSO
     [Header("선택지")]
     [Tooltip("모든 대사가 끝난 후 플레이어에게 제공될 선택지 목록입니다.")]
     public List<Choice> choices;
+
+}
+
+public enum ChoiceActionType
+{
+    None,
+    // --- PlayerDataManager 관련 ---
+    AddIntellect,
+    AddCharm,
+    AddEndurance,
+    AddMoney,
+    // --- GameManager 관련 ---
+    AdvanceToNextDay
+    // 여기에 필요한 모든 종류의 액션을 미리 정의해둡니다.
+    // 예: UseActionPoint, GoToScene_PlayerRoom 등
+}
+[System.Serializable]
+public class ChoiceAction
+{
+    public ChoiceActionType actionType;
+    [Tooltip("스탯/돈 변경량. 다른 타입의 액션에서는 사용되지 않을 수 있음.")]
+    public int amount;
 }

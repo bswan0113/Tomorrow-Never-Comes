@@ -19,5 +19,11 @@ MonoBehaviour:
   choices:
   - choiceText: "\uC544\uC9C1!"
     nextDialogueID: 0
+    actions:
+    - actionType: 0
+      amount: 0
   - choiceText: "\uC794\uB2E4"
     nextDialogueID: 0
+    actions:
+    - actionType: 5
+      amount: 0

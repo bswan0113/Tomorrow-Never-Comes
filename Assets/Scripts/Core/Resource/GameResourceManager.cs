@@ -9,8 +9,8 @@ namespace Manager // 주인님의 패키징 구조에 맞춰 네임스페이스�
     {
         public static GameResourceManager Instance { get; private set; }
 
-        // 모든 GameDataSO를 id를 키로 하여 저장하는 단일 데이터베이스
-        private Dictionary<int, GameDataSO> gameDatabase;
+        // 모든 GameData를 id를 키로 하여 저장하는 단일 데이터베이스
+        private Dictionary<int, GameData> gameDatabase;
 
         void Awake()
         {
@@ -28,8 +28,8 @@ namespace Manager // 주인님의 패키징 구조에 맞춰 네임스페이스�
 
         private void LoadAllGameData()
         {
-            // 1. Resources 폴더 하위의 모든 GameDataSO 상속 에셋을 불러옵니다.
-            var allData = Resources.LoadAll<GameDataSO>(""); // 빈 문자열은 Resources 폴더 전체를 의미
+            // 1. Resources 폴더 하위의 모든 GameData 상속 에셋을 불러옵니다.
+            var allData = Resources.LoadAll<GameData>(""); // 빈 문자열은 Resources 폴더 전체를 의미
 
             // 2. 중복 ID가 있는지 검사하고, 있다면 경고를 출력합니다.
             var duplicates = allData.GroupBy(data => data.id)
@@ -55,9 +55,9 @@ namespace Manager // 주인님의 패키징 구조에 맞춰 네임스페이스�
         /// <typeparam name="T">가져올 데이터의 타입 (SpellData, MagicBookData 등)</typeparam>
         /// <param name="id">찾고자 하는 데이터의 ID</param>
         /// <returns>요청한 타입의 데이터. 없으면 null을 반환합니다.</returns>
-        public T GetDataByID<T>(int id) where T : GameDataSO
+        public T GetDataByID<T>(int id) where T : GameData
         {
-            if (gameDatabase.TryGetValue(id, out GameDataSO data))
+            if (gameDatabase.TryGetValue(id, out GameData data))
             {
                 if (data is T requestedData)
                 {
@@ -73,7 +73,7 @@ namespace Manager // 주인님의 패키징 구조에 맞춰 네임스페이스�
             Debug.LogWarning($"요청한 ID '{id}'를 가진 데이터를 찾을 수 없습니다!");
             return null;
         }
-        public List<T> GetAllDataOfType<T>() where T : GameDataSO
+        public List<T> GetAllDataOfType<T>() where T : GameData
         {
             return gameDatabase.Values.OfType<T>().ToList();
         }

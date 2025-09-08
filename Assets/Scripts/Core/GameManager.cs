@@ -95,8 +95,8 @@ public class GameManager : MonoBehaviour
     private bool CheckSurvivalConditions()
     {
         // 1. 오늘 날짜에 맞는 규칙 SO를 GameResourceManager에서 찾는다.
-        var allRules = GameResourceManager.Instance.GetAllDataOfType<DailyRuleSO>();
-        DailyRuleSO currentDayRule = allRules.FirstOrDefault(rule => rule.targetDay == dayCount);
+        var allRules = GameResourceManager.Instance.GetAllDataOfType<DailyRuleData>();
+        DailyRuleData currentDayRule = allRules.FirstOrDefault(rule => rule.targetDay == dayCount);
 
         // 2. 오늘 적용할 특별 규칙이 없다면? 기본 생존으로 간주.
         if (currentDayRule == null)
@@ -133,7 +133,7 @@ public class GameManager : MonoBehaviour
     /// <summary>
     /// ConditionSO 데이터를 해석하여 플레이어의 현재 상태와 비교하는 해석기입니다.
     /// </summary>
-    private bool EvaluateCondition(ConditionSO condition)
+    public bool EvaluateCondition(ConditionData condition)
     {
         if (PlayerDataManager.Instance?.Status == null) return false;
 

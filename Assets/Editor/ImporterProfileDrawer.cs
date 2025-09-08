@@ -13,7 +13,7 @@ public class ImporterProfileDrawer : PropertyDrawer
     {
         gameDataTypes = AppDomain.CurrentDomain.GetAssemblies()
             .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type.IsSubclassOf(typeof(GameDataSO)) && !type.IsAbstract)
+            .Where(type => type.IsSubclassOf(typeof(GameData)) && !type.IsAbstract)
             .ToArray();
 
         gameDataTypeNames = gameDataTypes.Select(type => type.Name).ToArray();

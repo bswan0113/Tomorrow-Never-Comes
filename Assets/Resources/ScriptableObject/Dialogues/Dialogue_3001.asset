@@ -17,4 +17,9 @@ MonoBehaviour:
   - speakerID: 0
     dialogueText: "\uC9D1\uC0AC\uC5D0\uAC8C \uC778\uC0AC\uB97C \uAC74\uB138\uB2E4.\n\uC0AC\uC18C\uD55C
       \uCE5C\uC808\uC774 \uC778\uAC04\uAD00\uACC4\uC758 \uC2DC\uC791\uC774\uB2E4."
-  choices: []
+  choices:
+  - choiceText: 
+    nextDialogueID: 0
+    actions:
+    - actionType: 4
+      amount: 0

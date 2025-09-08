@@ -7,7 +7,7 @@ public enum ConditionType { StatCheck }
 public enum Operator { GreaterThan, LessThan, EqualTo, GreaterThanOrEqualTo, LessThanOrEqualTo }
 
 [CreateAssetMenu(fileName = "New Condition", menuName = "Game Data/Rules/Condition")]
-public class ConditionSO : ScriptableObject
+public class ConditionData : ScriptableObject
 {
     [Tooltip("이 조건에 대한 설명 (기획자용)")]
     public string description;

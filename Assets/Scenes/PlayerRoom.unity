@@ -211,11 +211,109 @@ PrefabInstance:
       propertyPath: m_Name
       value: DialogueUI
       objectReference: {fileID: 0}
+    - target: {fileID: 7672392406196804214, guid: 7ff8b69a99196f546a0d586421cebd93, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 342.0669
+      objectReference: {fileID: 0}
+    - target: {fileID: 7672392406196804214, guid: 7ff8b69a99196f546a0d586421cebd93, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -3.3173828
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 7ff8b69a99196f546a0d586421cebd93, type: 3}
+--- !u!1 &350229581
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 350229583}
+  - component: {fileID: 350229582}
+  m_Layer: 0
+  m_Name: Sequence_DefaultStudy
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &350229582
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 350229581}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1a4b5a4e4f414b4f9409989545bdf33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  actions:
+  - description: "\uD589\uB3D9\uB825 3 \uC18C\uBAA8"
+    actionType: 0
+    delay: 0
+    unityEvent:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 738243633}
+          m_TargetAssemblyTypeName: GameActionHandler, Assembly-CSharp
+          m_MethodName: UseActionPoint
+          m_Mode: 3
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 3
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+    dialogueData: {fileID: 0}
+  - description: "\uB300\uD654"
+    actionType: 1
+    delay: 0
+    unityEvent:
+      m_PersistentCalls:
+        m_Calls: []
+    dialogueData: {fileID: 11400000, guid: 81fb3e76c25b4374ab3a5af1884f10d9, type: 2}
+  - description: "\uC9C0\uB2A5 5 \uC99D\uAC00"
+    actionType: 0
+    delay: 0
+    unityEvent:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 738243633}
+          m_TargetAssemblyTypeName: GameActionHandler, Assembly-CSharp
+          m_MethodName: AddIntellect
+          m_Mode: 3
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 3
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+    dialogueData: {fileID: 0}
+--- !u!4 &350229583
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 350229581}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1810709588}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!224 &421380903 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 8376299933075922290, guid: 24888cbab797fbd4c9e714620b4d027e, type: 3}
@@ -233,7 +331,6 @@ GameObject:
   - component: {fileID: 474247827}
   - component: {fileID: 474247826}
   - component: {fileID: 474247825}
-  - component: {fileID: 474247829}
   m_Layer: 0
   m_Name: Bed
   m_TagString: Untagged
@@ -254,10 +351,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   actionPointCost: 0
-  onInteractionSuccess:
+  conditionalEvents: []
+  defaultEvent:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 474247829}
+      - m_Target: {fileID: 1377278254}
         m_TargetAssemblyTypeName: ActionSequencer, Assembly-CSharp
         m_MethodName: ExecuteSequence
         m_Mode: 1
@@ -385,48 +483,10 @@ Transform:
   m_LocalPosition: {x: -5.1427, y: 0.9422, z: 0}
   m_LocalScale: {x: 5.3454, y: 7.6243, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1377278255}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &474247829
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 474247824}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f1a4b5a4e4f414b4f9409989545bdf33, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  actions:
-  - description: "\uC794\uB2E4"
-    actionType: 1
-    delay: 0
-    unityEvent:
-      m_PersistentCalls:
-        m_Calls: []
-    dialogueData: {fileID: 11400000, guid: dc8d53f8f70d6cc49bc6af86a5bc3cd9, type: 2}
-  - description: "\uB2E4\uC74C\uB0A0\uB85C"
-    actionType: 0
-    delay: 0
-    unityEvent:
-      m_PersistentCalls:
-        m_Calls:
-        - m_Target: {fileID: 738243633}
-          m_TargetAssemblyTypeName: GameActionHandler, Assembly-CSharp
-          m_MethodName: AdvanceToNextDay
-          m_Mode: 1
-          m_Arguments:
-            m_ObjectArgument: {fileID: 0}
-            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-            m_IntArgument: 0
-            m_FloatArgument: 0
-            m_StringArgument: 
-            m_BoolArgument: 0
-          m_CallState: 2
-    dialogueData: {fileID: 0}
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -979,6 +1039,122 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &1377278253
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1377278255}
+  - component: {fileID: 1377278254}
+  m_Layer: 0
+  m_Name: Sequence_DefaultBed
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1377278254
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1377278253}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1a4b5a4e4f414b4f9409989545bdf33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  actions:
+  - description: "\uC794\uB2E4"
+    actionType: 1
+    delay: 0
+    unityEvent:
+      m_PersistentCalls:
+        m_Calls: []
+    dialogueData: {fileID: 11400000, guid: dc8d53f8f70d6cc49bc6af86a5bc3cd9, type: 2}
+--- !u!4 &1377278255
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1377278253}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 474247828}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1628032193
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1628032195}
+  - component: {fileID: 1628032194}
+  m_Layer: 0
+  m_Name: Sequence_AdvancedStudy
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1628032194
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1628032193}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1a4b5a4e4f414b4f9409989545bdf33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  actions:
+  - description: "\uD589\uB3D9\uB825 2 \uC18C\uBAA8"
+    actionType: 1
+    delay: 0
+    unityEvent:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 738243633}
+          m_TargetAssemblyTypeName: GameActionHandler, Assembly-CSharp
+          m_MethodName: UseActionPoint
+          m_Mode: 3
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 2
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+    dialogueData: {fileID: 11400000, guid: 0a57c7e7e6d6dac42a6f911b904b464d, type: 2}
+--- !u!4 &1628032195
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1628032193}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1810709588}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1810709584
 GameObject:
   m_ObjectHideFlags: 0
@@ -991,7 +1167,6 @@ GameObject:
   - component: {fileID: 1810709587}
   - component: {fileID: 1810709586}
   - component: {fileID: 1810709585}
-  - component: {fileID: 1810709589}
   m_Layer: 0
   m_Name: Desk
   m_TagString: Untagged
@@ -1012,10 +1187,29 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   actionPointCost: 3
-  onInteractionSuccess:
+  conditionalEvents:
+  - description: "\uBA38\uB9AC\uAC00 \uC88B\uC744\uB54C"
+    conditions:
+    - {fileID: 11400000, guid: 4a7a0358d76882c4aaf61ed71ceb23c3, type: 2}
+    onConditionsMet:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 1628032194}
+          m_TargetAssemblyTypeName: ActionSequencer, Assembly-CSharp
+          m_MethodName: ExecuteSequence
+          m_Mode: 1
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+  defaultEvent:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1810709589}
+      - m_Target: {fileID: 350229582}
         m_TargetAssemblyTypeName: ActionSequencer, Assembly-CSharp
         m_MethodName: ExecuteSequence
         m_Mode: 1
@@ -1131,7 +1325,7 @@ SpriteRenderer:
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 0
+  m_SortingOrder: 999
   m_Sprite: {fileID: 7482667652216324306, guid: 311925a002f4447b3a28927169b83ea6, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 0}
   m_FlipX: 0
@@ -1155,67 +1349,11 @@ Transform:
   m_LocalPosition: {x: 3.48, y: 2.5885, z: 0}
   m_LocalScale: {x: 5.4999, y: 4.457, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 350229583}
+  - {fileID: 1628032195}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1810709589
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1810709584}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f1a4b5a4e4f414b4f9409989545bdf33, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  actions:
-  - description: "\uD589\uB3D9\uB825 3 \uC18C\uBAA8"
-    actionType: 0
-    delay: 0
-    unityEvent:
-      m_PersistentCalls:
-        m_Calls:
-        - m_Target: {fileID: 738243633}
-          m_TargetAssemblyTypeName: GameActionHandler, Assembly-CSharp
-          m_MethodName: UseActionPoint
-          m_Mode: 3
-          m_Arguments:
-            m_ObjectArgument: {fileID: 0}
-            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-            m_IntArgument: 3
-            m_FloatArgument: 0
-            m_StringArgument: 
-            m_BoolArgument: 0
-          m_CallState: 2
-    dialogueData: {fileID: 0}
-  - description: "\uB300\uD654"
-    actionType: 1
-    delay: 0
-    unityEvent:
-      m_PersistentCalls:
-        m_Calls: []
-    dialogueData: {fileID: 11400000, guid: 81fb3e76c25b4374ab3a5af1884f10d9, type: 2}
-  - description: "\uC9C0\uB2A5 5 \uC99D\uAC00"
-    actionType: 0
-    delay: 0
-    unityEvent:
-      m_PersistentCalls:
-        m_Calls:
-        - m_Target: {fileID: 738243633}
-          m_TargetAssemblyTypeName: GameActionHandler, Assembly-CSharp
-          m_MethodName: AddIntellect
-          m_Mode: 3
-          m_Arguments:
-            m_ObjectArgument: {fileID: 0}
-            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-            m_IntArgument: 3
-            m_FloatArgument: 0
-            m_StringArgument: 
-            m_BoolArgument: 0
-          m_CallState: 2
-    dialogueData: {fileID: 0}
 --- !u!1 &2038266333
 GameObject:
   m_ObjectHideFlags: 0

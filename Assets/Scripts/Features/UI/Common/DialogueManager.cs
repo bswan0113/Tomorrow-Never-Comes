@@ -143,7 +143,9 @@ public class DialogueManager : MonoBehaviour
 
     public void ProcessChoice(Choice choice)
     {
-        canProcessInput = true; // 선택지 처리 후 새 대화가 시작될 것이므로 입력 가능 상태로 초기화
+        // 선택지에 연결된 액션들을 먼저 실행합니다.
+        ExecuteChoiceActions(choice.actions);
+        canProcessInput = true;
         if (choice.nextDialogueID > 0)
         {
             StartDialogue(choice.nextDialogueID);
@@ -151,6 +153,46 @@ public class DialogueManager : MonoBehaviour
         else
         {
             EndDialogue();
+        }
+    }
+
+    private void ExecuteChoiceActions(List<ChoiceAction> actions)
+    {
+        if (actions == null || actions.Count == 0) return;
+
+        Debug.Log($"<color=cyan>선택지 액션 {actions.Count}개를 실행합니다...</color>");
+
+        foreach (var action in actions)
+        {
+            // 각 액션에 필요한 매니저가 있는지 먼저 확인하는 것이 더 안전합니다.
+            switch (action.actionType)
+            {
+                // --- PlayerDataManager 관련 ---
+                case ChoiceActionType.AddIntellect:
+                    if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.AddIntellect(action.amount);
+                    break;
+                case ChoiceActionType.AddCharm:
+                    if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.AddCharm(action.amount);
+                    break;
+                // ... (다른 스탯들도 마찬가지) ...
+
+                // --- GameManager 관련 ---
+                case ChoiceActionType.AdvanceToNextDay:
+                    // 이 액션은 보통 대화가 끝난 후 마지막에 실행되어야 하므로,
+                    // 즉시 실행하는 것이 맞는지 기획적으로 고려해야 합니다.
+                    // 지금 구조에서는 즉시 실행됩니다.
+                    if (GameManager.Instance != null)
+                    {
+                        // 날짜를 넘기기 전에 플레이어 데이터 저장은 필수
+                        PlayerDataManager.Instance?.SavePlayerData();
+                        GameManager.Instance.AdvanceToNextDay();
+                    }
+                    break;
+
+                case ChoiceActionType.None:
+                default:
+                    break;
+            }
         }
     }
 
