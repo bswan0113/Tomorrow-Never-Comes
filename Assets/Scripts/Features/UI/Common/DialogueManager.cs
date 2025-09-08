@@ -22,6 +22,8 @@ public class DialogueManager : MonoBehaviour
     private bool isDialogueActive = false;
     private bool isDisplayingChoices = false;
     private bool canProcessInput = true; // 입력 제어를 위한 플래그
+    private const string noneRegisteredIdentifier = "0";
+    public static event Action OnDialogueEnded;
 
     // 게임 상태 변경을 위한 이벤트
     public static event Action<bool> OnDialogueStateChanged;
@@ -66,7 +68,7 @@ public class DialogueManager : MonoBehaviour
     /// </summary>
     public void StartDialogue(string dialogueID)
     {
-        if (string.IsNullOrEmpty(dialogueID) || dialogueID == "0")
+        if (string.IsNullOrEmpty(dialogueID) || dialogueID == noneRegisteredIdentifier)
         {
             return;
         }
@@ -136,7 +138,7 @@ public class DialogueManager : MonoBehaviour
 
     private string GetSpeakerName(string speakerID)
     {
-        if (string.IsNullOrEmpty(speakerID) || speakerID == "0") return "";
+        if (string.IsNullOrEmpty(speakerID) || speakerID == noneRegisteredIdentifier) return "";
 
         CharacterData speakerData = GameResourceManager.Instance.GetDataByID<CharacterData>(speakerID);
         if (speakerData != null)
@@ -151,7 +153,7 @@ public class DialogueManager : MonoBehaviour
     public void ProcessChoice(Choice choice)
     {
         // 1. 다음 대화 ID가 비어있거나 "0"인 경우, 실질적으로 다음 대화가 없다고 판단합니다.
-        bool isEffectivelyNoNextDialogue = string.IsNullOrEmpty(choice.nextDialogueID) || choice.nextDialogueID == "0";
+        bool isEffectivelyNoNextDialogue = string.IsNullOrEmpty(choice.nextDialogueID) || choice.nextDialogueID == noneRegisteredIdentifier;
 
         // 2. 날짜 전환 액션이 이 선택지에 포함되어 있는지 확인합니다.
         //    choice.actions가 null일 가능성에 대비하여 안전하게 체크합니다.
@@ -235,6 +237,7 @@ public class DialogueManager : MonoBehaviour
         isDialogueActive = false;
         isDisplayingChoices = false;
         currentDialogueData = null;
+        OnDialogueEnded?.Invoke();
         m_RegisteredUI.Hide();
     }
 

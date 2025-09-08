@@ -16,6 +16,7 @@ public class ActionSequencer : MonoBehaviour
 
     // 현재 실행 중인 시퀀스 코루틴
     private Coroutine sequenceCoroutine;
+    private bool dialogueIsInProgress = false;
 
     /// <summary>
     /// 이 시퀀서에 등록된 모든 액션을 처음부터 순서대로 실행합니다.
@@ -43,9 +44,10 @@ public class ActionSequencer : MonoBehaviour
             // 2. 대화 액션이라면, 대화가 끝날 때까지 기다립니다.
             if (action.actionType == ActionType.StartDialogue && DialogueManager.Instance != null)
             {
+                dialogueIsInProgress = true;
                 DialogueManager.Instance.StartDialogue(action.dialogueData);
                 // DialogueManager가 isDialogueActive를 false로 만들 때까지 대기
-                yield return new WaitUntil(() => DialogueManager.Instance.IsDialogueActive() == false);
+                yield return new WaitUntil(() => dialogueIsInProgress == false);
             }
             else // 3. 일반 UnityEvent 액션이라면 그냥 실행합니다.
             {
@@ -53,6 +55,28 @@ public class ActionSequencer : MonoBehaviour
             }
         }
         sequenceCoroutine = null; // 모든 액션이 끝나면 코루틴 참조를 비웁니다.
+    }
+
+    private void OnEnable()
+    {
+        DialogueManager.OnDialogueEnded += HandleDialogueEnded;
+        // 만약 OnDialogueStateChanged도 필요하다면 여기서 구독
+        // DialogueManager.OnDialogueStateChanged += HandleDialogueStateChanged;
+    }
+
+    private void OnDisable()
+    {
+        DialogueManager.OnDialogueEnded -= HandleDialogueEnded;
+        // DialogueManager.OnDialogueStateChanged -= HandleDialogueStateChanged;
+    }
+
+    // ▼▼▼ 이벤트 핸들러 함수 추가 ▼▼▼
+    private void HandleDialogueEnded()
+    {
+        // DialogueManager에서 대화가 끝났음을 알리면, 플래그를 false로 변경합니다.
+        // WaitUntil 조건이 충족되어 코루틴이 재개될 것입니다.
+        dialogueIsInProgress = false;
+        Debug.Log("[ActionSequencer] Received OnDialogueEnded event.");
     }
 }
 
