@@ -8,5 +8,5 @@ using UnityEngine;
 public abstract class GameData : ScriptableObject
 {
     [Tooltip("데이터를 구분하는 고유 ID")]
-    public int id;
+    public string id;
 }

@@ -10,10 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3bff7708aa6bd3c48ae6741ee80e4556, type: 3}
-  m_Name: System_InsufficientAP_Dialogue
+  m_Name: Dialogue_3003
   m_EditorClassIdentifier: 
-  id: 0
+  id: Dialogue_3003
   dialogueLines:
-  - speakerID: 0
-    dialogueText: "\uD589\uB3D9\uB825\uC774 \uBD80\uC871\uD558\uB2E4!"
+  - speakerID: 
+    dialogueText: "1\uC77C\uCC28 \uC544\uCE68\uC774 \uBC1D\uC558\uB2E4. \uBB34\uC5C7\uC744
+      \uD560\uAE4C?"
   choices: []

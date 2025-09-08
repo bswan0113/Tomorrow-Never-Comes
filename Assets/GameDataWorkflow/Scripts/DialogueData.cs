@@ -10,7 +10,7 @@ public class Choice
 {
     [TextArea(2, 5)]
     public string choiceText;
-    public int nextDialogueID; // 0이면 대화 종료
+    public string nextDialogueID; // 0이면 대화 종료
 
     public List<ChoiceAction> actions; // 방금 추가했던 스탯 변경용 액션
 }
@@ -22,7 +22,7 @@ public class Choice
 public class DialogueLine
 {
     [Tooltip("이 대사를 말하는 CharacterData의 ID. 0 이면 시스템 독백(나레이션)입니다.")]
-    public int speakerID;
+    public string speakerID;
 
     [Tooltip("화면에 표시될 실제 대사 내용입니다.")]
     [TextArea(3, 10)]

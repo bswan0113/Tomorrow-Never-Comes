@@ -12,5 +12,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 655fafe8e6c3494d90d5b235ad88ce34, type: 3}
   m_Name: "\uBBFC\uC218"
   m_EditorClassIdentifier: 
-  id: 1
+  id: Character_0001
   characterName: "\uBBFC\uC218"

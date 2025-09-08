@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2db9292faa194317ab7e875d0e138a1a, type: 3}
-  m_Name: ImporterConfig
+  m_Name: ImporterConfigCharacters
   m_EditorClassIdentifier: 
   profiles:
-  - profileName: Dialogues
+  - profileName: CharacterData Importer
     isEnabled: 1
-    soTypeFullName: DialogueData, Assembly-CSharp, Version=0.0.0.0, Culture=neutral,
+    soTypeFullName: CharacterData, Assembly-CSharp, Version=0.0.0.0, Culture=neutral,
       PublicKeyToken=null
-    csvFile: {fileID: 4900000, guid: 57f6048ec70e3d74da6fdd948443badb, type: 3}
-    outputSOPath: Assets/Resources/ScriptableObject/Dialogues
+    csvFile: {fileID: 0}
+    outputSOPath: Assets/Resources/ScriptableObject/Characters

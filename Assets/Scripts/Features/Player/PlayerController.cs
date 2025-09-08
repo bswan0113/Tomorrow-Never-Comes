@@ -57,6 +57,8 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
+
+
         if (!canControl) return;
 
         float horizontalInput = Input.GetAxisRaw("Horizontal");
@@ -66,6 +68,8 @@ public class PlayerController : MonoBehaviour
         // ▼▼▼ 핵심 수정 ▼▼▼: 입력 잠금 상태가 아닐 때만 상호작용을 시도
         if (Input.GetKeyDown(interactionKey) && !isInteractionLocked)
         {
+            Debug.Log($"[PlayerController.Update] canControl: {canControl}, isInteractionLocked: {isInteractionLocked}, IsDialogueActive: {DialogueManager.Instance?.IsDialogueActive()}");
+            Debug.Log("<color=yellow>Interaction Key Pressed!</color>");
             TryInteract();
         }
 
@@ -104,6 +108,8 @@ public class PlayerController : MonoBehaviour
 
     private void TryInteract()
     {
+
+
         if (DialogueManager.Instance != null && DialogueManager.Instance.IsDialogueActive())
         {
             return;
@@ -114,6 +120,7 @@ public class PlayerController : MonoBehaviour
 
         if (nearestInteractable != null)
         {
+            Debug.Log($"<color=green>Nearest interactable found: {(nearestInteractable as MonoBehaviour).gameObject.name}. Calling Interact()...</color>");
             nearestInteractable.Interact();
         }
         else

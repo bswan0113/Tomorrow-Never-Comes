@@ -211,6 +211,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: DialogueUI
       objectReference: {fileID: 0}
+    - target: {fileID: 1381867592702290413, guid: 7ff8b69a99196f546a0d586421cebd93, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 7672392406196804214, guid: 7ff8b69a99196f546a0d586421cebd93, type: 3}
       propertyPath: m_AnchoredPosition.x
       value: 342.0669

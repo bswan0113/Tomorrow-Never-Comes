@@ -10,16 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3bff7708aa6bd3c48ae6741ee80e4556, type: 3}
-  m_Name: Dialogue_3001
+  m_Name: Sample
   m_EditorClassIdentifier: 
-  id: 3001
+  id: Dialogue_3001
   dialogueLines:
-  - speakerID: 0
-    dialogueText: "\uC9D1\uC0AC\uC5D0\uAC8C \uC778\uC0AC\uB97C \uAC74\uB138\uB2E4.\n\uC0AC\uC18C\uD55C
-      \uCE5C\uC808\uC774 \uC778\uAC04\uAD00\uACC4\uC758 \uC2DC\uC791\uC774\uB2E4."
-  choices:
-  - choiceText: 
-    nextDialogueID: 0
-    actions:
-    - actionType: 4
-      amount: 0
+  - speakerID: Character_0001
+    dialogueText: "\uBC30\uACE0\uD504\uB2E4"
+  - speakerID: Character_0001
+    dialogueText: "\uBBFC\uC9C0\uC57C \uBB50\uD574?"
+  - speakerID: Character_0002
+    dialogueText: "\uB098 \uC790\uC704\uC911~"
+  choices: []

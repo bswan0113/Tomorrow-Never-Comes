@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2db9292faa194317ab7e875d0e138a1a, type: 3}
+  m_Name: ImporterConfigDialogues
+  m_EditorClassIdentifier: 
+  profiles:
+  - profileName: Dialogues
+    isEnabled: 1
+    soTypeFullName: DialogueData, Assembly-CSharp, Version=0.0.0.0, Culture=neutral,
+      PublicKeyToken=null
+    csvFile: {fileID: 4900000, guid: 6cf769b8f09b0b14fae507768b288095, type: 3}
+    outputSOPath: Assets/Resources/ScriptableObject/Dialogues

@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Manager;
 using UnityEngine;
+using System.Linq;
 
 /// <summary>
 /// 게임의 전체 대화 흐름을 관리하는 싱글톤 매니저입니다.
@@ -27,8 +28,13 @@ public class DialogueManager : MonoBehaviour
 
     void Awake()
     {
-        if (Instance != null && Instance != this) Destroy(this.gameObject);
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
         Instance = this;
+        DontDestroyOnLoad(gameObject);
         dialogueQueue = new Queue<DialogueLine>();
     }
 
@@ -58,8 +64,12 @@ public class DialogueManager : MonoBehaviour
     /// <summary>
     /// 지정된 ID의 대화를 시작합니다.
     /// </summary>
-    public void StartDialogue(int dialogueID)
+    public void StartDialogue(string dialogueID)
     {
+        if (string.IsNullOrEmpty(dialogueID) || dialogueID == "0")
+        {
+            return;
+        }
         DialogueData data = GameResourceManager.Instance.GetDataByID<DialogueData>(dialogueID);
         if (data != null)
         {
@@ -124,12 +134,9 @@ public class DialogueManager : MonoBehaviour
         }
     }
 
-    private string GetSpeakerName(int speakerID)
+    private string GetSpeakerName(string speakerID)
     {
-        if (speakerID <= 0)
-        {
-            return ""; // 독백
-        }
+        if (string.IsNullOrEmpty(speakerID) || speakerID == "0") return "";
 
         CharacterData speakerData = GameResourceManager.Instance.GetDataByID<CharacterData>(speakerID);
         if (speakerData != null)
@@ -143,16 +150,41 @@ public class DialogueManager : MonoBehaviour
 
     public void ProcessChoice(Choice choice)
     {
-        // 선택지에 연결된 액션들을 먼저 실행합니다.
-        ExecuteChoiceActions(choice.actions);
-        canProcessInput = true;
-        if (choice.nextDialogueID > 0)
+        // 1. 다음 대화 ID가 비어있거나 "0"인 경우, 실질적으로 다음 대화가 없다고 판단합니다.
+        bool isEffectivelyNoNextDialogue = string.IsNullOrEmpty(choice.nextDialogueID) || choice.nextDialogueID == "0";
+
+        // 2. 날짜 전환 액션이 이 선택지에 포함되어 있는지 확인합니다.
+        //    choice.actions가 null일 가능성에 대비하여 안전하게 체크합니다.
+        bool containsAdvanceToNextDay = choice.actions != null && choice.actions.Any(a => a.actionType == ChoiceActionType.AdvanceToNextDay);
+
+        // Debugging logs (선택적으로 다시 추가하여 확인 가능)
+        // Debug.Log($"[ProcessChoice] Processing choice: '{choice.choiceText}'");
+        // Debug.Log($"[ProcessChoice] nextDialogueID: '{choice.nextDialogueID}' (isEffectivelyNoNextDialogue: {isEffectivelyNoNextDialogue})");
+        // Debug.Log($"[ProcessChoice] containsAdvanceToNextDay: {containsAdvanceToNextDay}, Total actions: {(choice.actions != null ? choice.actions.Count : 0)}");
+
+        // 3. 만약 실질적으로 다음 대화가 없거나, 날짜 전환 액션이 있다면 현재 대화를 종료합니다.
+        //    이것이 UI가 사라지고 대화 상태가 리셋되는 핵심 지점입니다.
+        if (isEffectivelyNoNextDialogue || containsAdvanceToNextDay)
         {
-            StartDialogue(choice.nextDialogueID);
-        }
-        else
-        {
+            // Debug.Log("[ProcessChoice] Calling EndDialogue()...");
             EndDialogue();
+        }
+        // else
+        // {
+        //     Debug.Log("[ProcessChoice] NOT calling EndDialogue(). Proceeding to next dialogue/actions.");
+        // }
+
+        // 4. 선택지에 연결된 액션들을 실행합니다.
+        ExecuteChoiceActions(choice.actions);
+
+        canProcessInput = true; // 입력 잠금 해제
+
+        // 5. 모든 액션 실행 후, 다음 대화가 실질적으로 존재하고 날짜 전환 액션이 없었을 경우에만 새로운 대화를 시작합니다.
+        //    날짜 전환 액션이 있었다면 이미 씬이 바뀌었을 것이므로 이 StartDialogue는 실행되지 않습니다.
+        if (!isEffectivelyNoNextDialogue && !containsAdvanceToNextDay) // isEffectivelyNoNextDialogue의 반대 조건 사용
+        {
+            // Debug.Log($"[ProcessChoice] Starting next dialogue: '{choice.nextDialogueID}'");
+            StartDialogue(choice.nextDialogueID);
         }
     }
 

@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3bff7708aa6bd3c48ae6741ee80e4556, type: 3}
-  m_Name: Dialogue_1001
+  m_Name: Dialogue_3005
   m_EditorClassIdentifier: 
-  id: 1001
+  id: Dialogue_3005
   dialogueLines:
-  - speakerID: 0
-    dialogueText: "\uACF5\uBD80\uC5D0 \uC9D1\uC911\uD558\uC790. 300\uC5B5\uC774 \uC788\uC5B4\uB3C4
-      \uBA38\uB9AC\uAC00 \uB098\uC058\uBA74 \uC0AC\uAE30\uB2F9\uD558\uAE30 \uC2ED\uC0C1\uC774\uB2E4."
+  - speakerID: Character_0002
+    dialogueText: "\uB098? \uADF8\uB0E5 \uC9C0\uCF1C\uBCF4\uB294 \uC0AC\uB78C\uC77C
+      \uBFD0. \uC55E\uC73C\uB85C \uC885\uC885 \uBCF4\uAC8C \uB420 \uAC70\uC57C."
   choices: []

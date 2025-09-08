@@ -54,7 +54,7 @@ public class GameActionHandler : MonoBehaviour
 
     // --- DialogueManager 관련 행동 ---
 
-    public void StartDialogue(int dialogueID)
+    public void StartDialogue(string dialogueID)
     {
         if (DialogueManager.Instance != null)
         {

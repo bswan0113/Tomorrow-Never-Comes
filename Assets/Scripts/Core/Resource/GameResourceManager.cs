@@ -10,7 +10,7 @@ namespace Manager // 주인님의 패키징 구조에 맞춰 네임스페이스�
         public static GameResourceManager Instance { get; private set; }
 
         // 모든 GameData를 id를 키로 하여 저장하는 단일 데이터베이스
-        private Dictionary<int, GameData> gameDatabase;
+        private Dictionary<string, GameData> gameDatabase;
 
         void Awake()
         {
@@ -55,7 +55,7 @@ namespace Manager // 주인님의 패키징 구조에 맞춰 네임스페이스�
         /// <typeparam name="T">가져올 데이터의 타입 (SpellData, MagicBookData 등)</typeparam>
         /// <param name="id">찾고자 하는 데이터의 ID</param>
         /// <returns>요청한 타입의 데이터. 없으면 null을 반환합니다.</returns>
-        public T GetDataByID<T>(int id) where T : GameData
+        public T GetDataByID<T>(string id) where T : GameData
         {
             if (gameDatabase.TryGetValue(id, out GameData data))
             {
