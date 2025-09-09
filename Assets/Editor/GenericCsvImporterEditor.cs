@@ -1,94 +1,169 @@
-// C:\Workspace\Tomorrow Never Comes\Assets\Editor\GenericCsvImporterEditor.cs
-using UnityEditor;
-using UnityEditor.AssetImporters;
-using System;
-using System.Linq;
 using UnityEngine;
+using UnityEditor;
+#if UNITY_2020_2_OR_NEWER
+using UnityEditor.AssetImporters;
+#else
+using UnityEditor.Experimental.AssetImporters;
+#endif
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 
+/// <summary>
+/// GenericCsvImporter의 인스펙터 UI를 대폭 개선합니다.
+/// SerializedObject를 사용하여 값을 안전하게 변경함으로써 Apply 시 설정이 초기화되는 문제를 해결합니다.
+/// </summary>
 [CustomEditor(typeof(GenericCsvImporter))]
 public class GenericCsvImporterEditor : ScriptedImporterEditor
 {
-    private static Type[] gameDataTypes;
-    private static string[] gameDataTypeNames;
-    private static readonly Type baseDataType = typeof(GameData);
+    private List<Type> gameDataTypes;
+    private string[] gameDataTypeNames;
+    private List<FieldInfo> cachedListFields;
+    private string[] cachedListFieldNames;
+    private string lastCheckedTargetTypeName;
 
-    // SerializedProperty는 직렬화된 객체의 속성을 안전하게 다루기 위한 Wrapper 클래스입니다.
-    private SerializedProperty targetTypeAssemblyQualifiedNameProp;
+    private SerializedProperty targetTypeProp;
+    private SerializedProperty strategyProp;
+    private SerializedProperty listFieldProp;
+    private SerializedProperty listItemTypeProp;
 
-    static GenericCsvImporterEditor()
-    {
-        // 이 부분은 기존과 동일합니다.
-        try
-        {
-            gameDataTypes = AppDomain.CurrentDomain.GetAssemblies()
-                .SelectMany(assembly => assembly.GetTypes())
-                .Where(type => type.IsSubclassOf(baseDataType) && !type.IsAbstract)
-                .ToArray();
-
-            if (gameDataTypes.Length == 0)
-            {
-                Debug.LogWarning($"[GenericCsvImporterEditor] '{baseDataType.Name}'를 상속받는 SO 타입을 찾지 못했습니다.");
-            }
-            gameDataTypeNames = new[] { "None" }.Concat(gameDataTypes.Select(type => type.Name)).ToArray();
-        }
-        catch (Exception e)
-        {
-            Debug.LogError($"[GenericCsvImporterEditor] Static Initializer FAILED: {e.Message}");
-        }
-    }
-
-    // OnEnable은 Inspector가 활성화될 때마다 호출됩니다.
-    // 여기서 SerializedProperty를 찾아 초기화하는 것이 표준 방식입니다.
     public override void OnEnable()
     {
-        base.OnEnable(); // 반드시 부모의 OnEnable을 호출해야 합니다.
-        // "targetTypeAssemblyQualifiedName" 이라는 이름의 속성을 찾아서 변수에 할당합니다.
-        // 이 이름은 GenericCsvImporter.cs에 선언된 public 변수 이름과 정확히 일치해야 합니다.
-        targetTypeAssemblyQualifiedNameProp = serializedObject.FindProperty("targetTypeAssemblyQualifiedName");
+        base.OnEnable();
+
+        targetTypeProp = serializedObject.FindProperty("targetTypeAssemblyQualifiedName");
+        strategyProp = serializedObject.FindProperty("strategy");
+        listFieldProp = serializedObject.FindProperty("groupedListField");
+        listItemTypeProp = serializedObject.FindProperty("groupedListItemTypeAssemblyQualifiedName");
+
+        BuildTypeCache();
+    }
+
+    public override void OnDisable()
+    {
+        base.OnDisable();
+    }
+
+    private void BuildTypeCache()
+    {
+        if (gameDataTypes != null) return;
+        gameDataTypes = AppDomain.CurrentDomain.GetAssemblies()
+            .SelectMany(assembly => {
+                try { return assembly.GetTypes(); }
+                catch (ReflectionTypeLoadException) { return new Type[0]; }
+            })
+            .Where(t => t.IsClass && !t.IsAbstract && typeof(GameData).IsAssignableFrom(t))
+            .OrderBy(t => t.FullName)
+            .ToList();
+        gameDataTypeNames = gameDataTypes.Select(t => t.FullName.Replace('.', '/')).ToArray();
+    }
+
+    private void BuildGroupedFieldCache(Type targetType)
+    {
+        cachedListFields = targetType?.GetFields(BindingFlags.Public | BindingFlags.Instance)
+            .Where(f => typeof(IList).IsAssignableFrom(f.FieldType))
+            .ToList() ?? new List<FieldInfo>();
+        cachedListFieldNames = cachedListFields.Select(f => f.Name).ToArray();
+        lastCheckedTargetTypeName = targetType?.AssemblyQualifiedName;
     }
 
     public override void OnInspectorGUI()
     {
-        // serializedObject.Update() : Inspector를 그리기 전에 최신 데이터로 업데이트합니다.
         serializedObject.Update();
 
-        EditorGUILayout.LabelField("CSV to ScriptableObject Importer", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox("Select the type of ScriptableObject to generate from this CSV file.", MessageType.Info);
+        DrawMainTypeSelector();
+        EditorGUILayout.Space(10);
 
-        // 현재 설정된 값을 기반으로 드롭다운 메뉴의 인덱스를 찾습니다.
-        int currentIndex = 0;
-        var currentTypeValue = targetTypeAssemblyQualifiedNameProp.stringValue;
-        if (!string.IsNullOrEmpty(currentTypeValue))
-        {
-            Type currentType = Type.GetType(currentTypeValue);
-            currentIndex = Array.IndexOf(gameDataTypes, currentType) + 1;
-        }
-
-        // --- ▼▼▼ 핵심 수정 부분 ▼▼▼ ---
         EditorGUI.BeginChangeCheck();
-
-        int selectedIndex = EditorGUILayout.Popup("Target SO Type", currentIndex, gameDataTypeNames);
-
+        EditorGUILayout.PropertyField(strategyProp);
         if (EditorGUI.EndChangeCheck())
         {
-            // 사용자가 선택을 변경하면, target 객체를 직접 수정하는 대신 SerializedProperty의 값을 변경합니다.
-            if (selectedIndex <= 0 || selectedIndex > gameDataTypes.Length)
+            if ((GenericCsvImporter.ImportStrategy)strategyProp.enumValueIndex == GenericCsvImporter.ImportStrategy.GroupedById)
             {
-                targetTypeAssemblyQualifiedNameProp.stringValue = null;
-            }
-            else
-            {
-                targetTypeAssemblyQualifiedNameProp.stringValue = gameDataTypes[selectedIndex - 1].AssemblyQualifiedName;
+                AutoConfigureGroupedFields();
             }
         }
 
-        // serializedObject.ApplyModifiedProperties() : 변경된 속성을 실제 객체에 적용합니다.
-        // 이 과정이 내부적으로 Undo 등록 및 Dirty 상태 설정을 처리해 줍니다.
-        serializedObject.ApplyModifiedProperties();
+        if ((GenericCsvImporter.ImportStrategy)strategyProp.enumValueIndex == GenericCsvImporter.ImportStrategy.GroupedById)
+        {
+            if (targetTypeProp.stringValue != lastCheckedTargetTypeName)
+            {
+                BuildGroupedFieldCache(Type.GetType(targetTypeProp.stringValue));
+            }
+            DrawGroupedStrategySettings();
+        }
 
-        // ApplyRevertGUI()는 변경 사항이 있을 때만 버튼을 활성화합니다.
-        // ApplyModifiedProperties()와 함께 사용되어야 합니다.
+        serializedObject.ApplyModifiedProperties();
         ApplyRevertGUI();
-        // --- ▲▲▲ 핵심 수정 부분 ▲▲▲ ---
+    }
+
+    private void AutoConfigureGroupedFields()
+    {
+        Type targetType = Type.GetType(targetTypeProp.stringValue);
+        if (targetType == null) return;
+        BuildGroupedFieldCache(targetType);
+
+        if (cachedListFields != null && cachedListFields.Count > 0)
+        {
+            FieldInfo defaultField = cachedListFields[0];
+            listFieldProp.stringValue = defaultField.Name;
+
+            Type itemType = defaultField.FieldType.IsArray
+                ? defaultField.FieldType.GetElementType()
+                : defaultField.FieldType.GetGenericArguments()[0];
+            listItemTypeProp.stringValue = itemType.AssemblyQualifiedName;
+        }
+    }
+
+    private void DrawMainTypeSelector()
+    {
+        EditorGUILayout.LabelField("Target ScriptableObject Type", EditorStyles.boldLabel);
+        int currentIndex = -1;
+        if (!string.IsNullOrEmpty(targetTypeProp.stringValue))
+        {
+            currentIndex = gameDataTypes.FindIndex(t => t.AssemblyQualifiedName == targetTypeProp.stringValue);
+        }
+        int newIndex = EditorGUILayout.Popup("Type", currentIndex, gameDataTypeNames);
+        if (newIndex != currentIndex)
+        {
+            // ▼▼▼ 여기가 핵심 수정사항입니다. 객체를 직접 건드리지 않습니다. ▼▼▼
+            targetTypeProp.stringValue = gameDataTypes[newIndex].AssemblyQualifiedName;
+            listFieldProp.stringValue = null;
+            listItemTypeProp.stringValue = null;
+        }
+        if (GUILayout.Button("Refresh Type List"))
+        {
+            gameDataTypes = null;
+            BuildTypeCache();
+        }
+    }
+
+    private void DrawGroupedStrategySettings()
+    {
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("Grouped Strategy Settings", EditorStyles.boldLabel);
+        if (cachedListFieldNames == null || cachedListFieldNames.Length == 0)
+        {
+            EditorGUILayout.HelpBox("Selected Target Type has no List or Array fields.", MessageType.Warning);
+            return;
+        }
+        int listFieldIndex = Array.IndexOf(cachedListFieldNames, listFieldProp.stringValue);
+        int newListFieldIndex = EditorGUILayout.Popup("List Field", listFieldIndex, cachedListFieldNames);
+        if (newListFieldIndex != listFieldIndex)
+        {
+            FieldInfo selectedField = cachedListFields[newListFieldIndex];
+            // ▼▼▼ 여기도 핵심 수정사항입니다. ▼▼▼
+            listFieldProp.stringValue = selectedField.Name;
+
+            Type itemType = selectedField.FieldType.IsArray
+                ? selectedField.FieldType.GetElementType()
+                : selectedField.FieldType.GetGenericArguments()[0];
+            listItemTypeProp.stringValue = itemType.AssemblyQualifiedName;
+        }
+        GUI.enabled = false;
+        EditorGUILayout.PropertyField(listItemTypeProp, new GUIContent("List Item Type"));
+        GUI.enabled = true;
     }
 }

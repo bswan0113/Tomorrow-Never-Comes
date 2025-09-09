@@ -3,19 +3,6 @@ using UnityEngine;
 using UnityEngine.Events;
 
 /// <summary>
-/// 선택지 하나에 대한 정보를 담는 순수 데이터 클래스.
-/// </summary>
-[System.Serializable]
-public class Choice
-{
-    [TextArea(2, 5)]
-    public string choiceText;
-    public string nextDialogueID;
-
-    // ChoiceAction 래퍼를 없애고 BaseChoiceAction 리스트를 직접 사용합니다.
-    public List<BaseAction> actions;
-}
-/// <summary>
 /// 대사 한 줄에 대한 정보를 담는 순수 데이터 클래스.
 /// </summary>
 [System.Serializable]
@@ -42,21 +29,8 @@ public class DialogueData : GameData
 
     [Header("선택지")]
     [Tooltip("모든 대사가 끝난 후 플레이어에게 제공될 선택지 목록입니다.")]
-    public List<Choice> choices;
+    public List<ChoiceData> choices;
 
 }
 
-public enum ChoiceActionType
-{
-    None,
-    // --- PlayerDataManager 관련 ---
-    AddIntellect,
-    AddCharm,
-    AddEndurance,
-    AddMoney,
-    // --- GameManager 관련 ---
-    AdvanceToNextDay
-    // 여기에 필요한 모든 종류의 액션을 미리 정의해둡니다.
-    // 예: UseActionPoint, GoToScene_PlayerRoom 등
-}
 

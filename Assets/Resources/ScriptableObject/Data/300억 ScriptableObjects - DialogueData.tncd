@@ -1,0 +1,7 @@
+ID,speakerID,dialogueText,choices,//Comment
+DLG_MAYOR_INTRO,0,"마을에 온 걸 환영하네, 용사여.",,
+DLG_MAYOR_INTRO,0,자네에게 부탁할 일이 있는데... 들어주겠나?,,
+DLG_MAYOR_INTRO,Character_0001,최근 마을 근처에 고블린들이 나타나서 골치라네.,,
+DLG_MAYOR_INTRO,Character_0001,정말 고맙네! 여기 지도를 받게. 조심하게나.,"CHOICE_CONFIRM,CHOICE_ACCEPT_QUEST,CHOICE_REJECT_QUEST",
+DLG_MAYOR_ACCEPT,Character_0002,그런가... 어쩔 수 없지. 마음이 바뀌면 다시 찾아오게.,,
+DLG_MAYOR_ACCEPT,Character_0003,무슨 일인데요?,CHOICE_GOODBYE,

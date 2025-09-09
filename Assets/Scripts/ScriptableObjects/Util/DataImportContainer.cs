@@ -1,15 +1,25 @@
-// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Data\DataImportContainer.cs (경로는 예시입니다)
-
-using UnityEngine;
+// GenericCsvImporter.cs 파일 상단 또는 DataImportContainer가 있는 곳에 추가
 using System.Collections.Generic;
+using UnityEngine;
 
-// 이 클래스는 CSV에서 임포트된 SO들을 담는 역할을 합니다.
-// 런타임에 직접 사용할 일은 거의 없으며, 에디터에서 데이터 관리를 편하게 하기 위한 용도입니다.
-public class DataImportContainer : ScriptableObject
+[System.Serializable]
+public class PendingReference
 {
-    [SerializeField]
-    public List<ScriptableObject> importedObjects = new List<ScriptableObject>();
+    public ScriptableObject targetObject; // 연결을 받을 객체 (예: DLG_MAYOR_INTRO)
+    public string fieldName;              // 연결할 필드 이름 (예: "choices")
+    public List<string> requiredIds;      // 연결해야 할 ID 목록 (예: ["CHOICE_CONFIRM", ...])
+
+    public PendingReference(ScriptableObject target, string field, List<string> ids)
+    {
+        targetObject = target;
+        fieldName = field;
+        requiredIds = ids;
+    }
 }
 
-// 참고: 기존 CSVParser는 변경 없이 그대로 사용하면 됩니다.
-// 만약 다른 곳에 없다면 GenericCsvImporter.cs 파일 안에 private static class로 넣거나, 별도 파일로 유지해도 좋습니다.
+// 기존 DataImportContainer 클래스를 수정하여 PendingReference 목록을 포함시킵니다.
+public class DataImportContainer : ScriptableObject
+{
+    public List<ScriptableObject> importedObjects = new List<ScriptableObject>();
+    public List<PendingReference> pendingReferences = new List<PendingReference>(); // 이 줄을 추가!
+}

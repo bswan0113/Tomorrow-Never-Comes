@@ -11,6 +11,7 @@ param(
 
 # ==========================================================
 # ImportExcel 모듈을 '전체 경로'로 직접 불러옵니다.
+# !!! 중요: 'bswan0113' 부분을 본인의 Windows 사용자 이름으로 변경하세요. !!!
 # ==========================================================
 $modulePath = "C:\Users\bswan0113\Documents\WindowsPowerShell\Modules\ImportExcel"
 try {
@@ -33,19 +34,24 @@ $maxDataFields = 5
 function Convert-CsvToXlsx {
     Write-Host "Converting '$InputPath' (CSV) -> '$OutputPath' (XLSX)..." -ForegroundColor Green
     try {
-        $csvData = Import-Csv -Path $InputPath -Encoding UTF8
-        $cleanRows = [System.Collections.Generic.List[PSObject]]::new()
-        $entryId = 0
+        # 'id' 열이 있는 경우를 대비해 Import-Csv 전에 헤더를 직접 읽어서 사용
+        $fileContent = Get-Content -Path $InputPath -Encoding UTF8
+        $headers = $fileContent[0].Split(',')
+        $csvData = $fileContent | Select-Object -Skip 1 | ConvertFrom-Csv -Header $headers
 
+        $cleanRows = [System.Collections.Generic.List[PSObject]]::new()
+        
         foreach ($csvRow in $csvData) {
-            $entryId++
+            # id 열이 있는지 확인하고 있으면 사용, 없으면 순차적으로 생성
+            $entryId = if ($csvRow.PSObject.Properties['id']) { $csvRow.id } else { $cleanRows.Count + 1 }
             $hasContent = $false
             
-            # 모든 열(프로퍼티)을 순회하며 처리
             foreach ($property in $csvRow.PSObject.Properties) {
                 $columnName = $property.Name
-                $cellValue = $property.Value
+                # id 열은 SourceColumn으로 만들지 않도록 건너뜀
+                if ($columnName -eq 'id') { continue }
 
+                $cellValue = $property.Value
                 if (-not [string]::IsNullOrWhiteSpace($cellValue)) {
                     $hasContent = $true
                     $items = $cellValue.Split(';')
@@ -56,7 +62,6 @@ function Convert-CsvToXlsx {
                                 $idCol = $entryId
                                 $sourceCol = $columnName
                             }
-                            # Data1, Data2, ... 필드 동적 생성
                             for ($i = 0; $i -lt $maxDataFields; $i++) {
                                 $newRow["Data$($i+1)"] = if ($i -lt $fields.Length) { $fields[$i] } else { '' }
                             }
@@ -65,7 +70,6 @@ function Convert-CsvToXlsx {
                     }
                 }
             }
-             # 해당 ID에 아무런 내용이 없으면 빈 헤더 행을 추가하여 ID 유지
             if (-not $hasContent) {
                  $newRow = [ordered]@{ $idCol = $entryId; $sourceCol = 'EMPTY_ROW' }
                  for ($i = 0; $i -lt $maxDataFields; $i++) { $newRow["Data$($i+1)"] = '' }
@@ -86,15 +90,15 @@ function Convert-XlsxToCsv {
         $cleanData = Import-Excel -Path $InputPath -WorksheetName $cleanSheetName
         if (-not $cleanData) { throw "No data found in worksheet '$cleanSheetName'." }
 
-        # 최종 CSV의 헤더(모든 SourceColumn 이름)를 미리 수집
+        # id열과 sourceCol 열을 제외한 모든 열을 최종 헤더로 사용
         $csvHeaders = $cleanData.$sourceCol | Select-Object -Unique | Where-Object { $_ -ne 'EMPTY_ROW' }
 
         $groupedById = $cleanData | Group-Object -Property $idCol
         
         $csvOutputRows = foreach ($idGroup in $groupedById) {
-            $newCsvRow = [ordered]@{}
+            # 최종 CSV 행 객체 생성, id를 첫 번째 열로 추가
+            $newCsvRow = [ordered]@{ 'id' = $idGroup.Name }
             
-            # 미리 수집한 헤더를 기반으로 빈 값으로 초기화
             foreach($header in $csvHeaders) { $newCsvRow[$header] = "" }
 
             $groupedBySourceCol = $idGroup.Group | Group-Object -Property $sourceCol
@@ -107,12 +111,10 @@ function Convert-XlsxToCsv {
                     $fields = @()
                     for ($i = 1; $i -le $maxDataFields; $i++) {
                         $fieldName = "Data$i"
-                        # 해당 Data 필드가 존재하고, 비어있지 않은 경우에만 추가
-                        if ($row.$fieldName) {
+                        if ($row.PSObject.Properties[$fieldName] -and $row.$fieldName) {
                             $fields += $row.$fieldName
                         }
                     }
-                    # 필드가 하나라도 있어야 유효한 아이템으로 간주
                     if ($fields) { $fields -join '|' }
                 }
                 $newCsvRow[$columnName] = $items -join ';'
@@ -120,13 +122,29 @@ function Convert-XlsxToCsv {
             [PSCustomObject]$newCsvRow
         }
 
-        # Select-Object를 사용하여 최종 열 순서 보장
-        $csvOutputRows | Select-Object -Property $csvHeaders | Export-Csv -Path $OutputPath -NoTypeInformation -Encoding UTF8
+        # ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+        # --- 여기가 수정된 부분입니다 ---
+        # Export-Csv 대신, ConvertTo-Csv로 문자열로 변환 후 직접 따옴표를 제거
+        
+        # 1. 헤더 순서를 'id' 다음에 나머지 헤더가 오도록 정의
+        $finalHeaders = @('id') + $csvHeaders
+        
+        # 2. 데이터를 문자열 배열로 변환
+        $csvContent = $csvOutputRows | Select-Object -Property $finalHeaders | ConvertTo-Csv -NoTypeInformation
+
+        # 3. 첫 번째 줄(헤더)에서만 따옴표(")를 모두 제거
+        $csvContent[0] = $csvContent[0] -replace '"', ''
+
+        # 4. 수정된 내용을 파일에 저장
+        $csvContent | Out-File -FilePath $OutputPath -Encoding UTF8
+        # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
         Write-Host "Conversion successful." -ForegroundColor Cyan
     } catch {
         Write-Error "An error occurred during 'to-csv' conversion: $_"
     }
 }
+
 
 if (-not (Test-Path -Path $InputPath)) {
     Write-Error "Input file not found at '$InputPath'"

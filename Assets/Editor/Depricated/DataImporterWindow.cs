@@ -115,7 +115,7 @@ public class DataImporterWindow : EditorWindow
 
         if (soType == typeof(DialogueData))
         {
-            ImportDialogueData(profile, soType, prefix);
+            // ImportDialogueData(profile, soType, prefix);
         }
         else
         {
@@ -172,81 +172,81 @@ public class DataImporterWindow : EditorWindow
         }
     }
 
-    private void ImportDialogueData(ImporterProfile profile, Type soType, string prefix)
-    {
-        var parsedData = CSVParser.ParseFromString(profile.csvFile.text);
-        if (parsedData.Count == 0) return;
-
-        int lastId = GetLastUsedID(profile.outputSOPath, prefix);
-        int newIdCounter = lastId;
-
-        var keyToNewIdMap = new Dictionary<string, string>();
-        var dialogueGroups = parsedData.GroupBy(row => row["dialogueKey"]);
-
-        // 1단계: 모든 고유 'dialogueKey'에 대해 새로운 숫자 ID를 미리 할당합니다.
-        foreach (var group in dialogueGroups)
-        {
-            string dialogueKey = group.Key;
-            if (string.IsNullOrEmpty(dialogueKey) || keyToNewIdMap.ContainsKey(dialogueKey)) continue;
-
-            newIdCounter++;
-            string newFinalId = $"{prefix}{newIdCounter:D4}";
-            keyToNewIdMap[dialogueKey] = newFinalId;
-        }
-
-        // 2단계: ID 매핑을 사용하여 에셋을 생성하고 데이터를 채웁니다.
-        foreach (var group in dialogueGroups)
-        {
-            string dialogueKey = group.Key;
-            if (string.IsNullOrEmpty(dialogueKey)) continue;
-
-            string finalId = keyToNewIdMap[dialogueKey];
-            string assetPath = Path.Combine(profile.outputSOPath, $"{finalId}.asset");
-
-            DialogueData data = AssetDatabase.LoadAssetAtPath<DialogueData>(assetPath);
-            if(data == null)
-            {
-                data = ScriptableObject.CreateInstance<DialogueData>();
-                AssetDatabase.CreateAsset(data, assetPath);
-            }
-
-            Undo.RecordObject(data, "Update Dialogue Data");
-
-            data.id = finalId;
-            data.dialogueLines = new List<DialogueLine>();
-            data.choices = new List<Choice>();
-
-            foreach (var row in group)
-            {
-                data.dialogueLines.Add(new DialogueLine { speakerID = row["speakerID"], dialogueText = row["dialogueText"].Replace("\\n", "\n") });
-
-                if (row.TryGetValue("choices", out string choiceData) && !string.IsNullOrEmpty(choiceData))
-                {
-                    var choices = new List<Choice>();
-                    string[] choicePairs = choiceData.Split(';');
-                    foreach (var pair in choicePairs)
-                    {
-                        if (string.IsNullOrWhiteSpace(pair)) continue;
-                        string[] textAndId = pair.Split('>');
-                        if (textAndId.Length < 2) continue;
-
-                        string choiceText = textAndId[0];
-                        string nextDialogueKey = textAndId[1];
-
-                        string nextDialogueFullId = "";
-                        if (nextDialogueKey != "0" && !string.IsNullOrEmpty(nextDialogueKey) && keyToNewIdMap.ContainsKey(nextDialogueKey))
-                        {
-                            nextDialogueFullId = keyToNewIdMap[nextDialogueKey];
-                        }
-
-                        choices.Add(new Choice { choiceText = choiceText, nextDialogueID = nextDialogueFullId });
-                    }
-                    data.choices = choices;
-                }
-            }
-            EditorUtility.SetDirty(data);
-        }
-    }
+    // private void ImportDialogueData(ImporterProfile profile, Type soType, string prefix)
+    // {
+    //     var parsedData = CSVParser.ParseFromString(profile.csvFile.text);
+    //     if (parsedData.Count == 0) return;
+    //
+    //     int lastId = GetLastUsedID(profile.outputSOPath, prefix);
+    //     int newIdCounter = lastId;
+    //
+    //     var keyToNewIdMap = new Dictionary<string, string>();
+    //     var dialogueGroups = parsedData.GroupBy(row => row["dialogueKey"]);
+    //
+    //     // 1단계: 모든 고유 'dialogueKey'에 대해 새로운 숫자 ID를 미리 할당합니다.
+    //     foreach (var group in dialogueGroups)
+    //     {
+    //         string dialogueKey = group.Key;
+    //         if (string.IsNullOrEmpty(dialogueKey) || keyToNewIdMap.ContainsKey(dialogueKey)) continue;
+    //
+    //         newIdCounter++;
+    //         string newFinalId = $"{prefix}{newIdCounter:D4}";
+    //         keyToNewIdMap[dialogueKey] = newFinalId;
+    //     }
+    //
+    //     // 2단계: ID 매핑을 사용하여 에셋을 생성하고 데이터를 채웁니다.
+    //     foreach (var group in dialogueGroups)
+    //     {
+    //         string dialogueKey = group.Key;
+    //         if (string.IsNullOrEmpty(dialogueKey)) continue;
+    //
+    //         string finalId = keyToNewIdMap[dialogueKey];
+    //         string assetPath = Path.Combine(profile.outputSOPath, $"{finalId}.asset");
+    //
+    //         DialogueData data = AssetDatabase.LoadAssetAtPath<DialogueData>(assetPath);
+    //         if(data == null)
+    //         {
+    //             data = ScriptableObject.CreateInstance<DialogueData>();
+    //             AssetDatabase.CreateAsset(data, assetPath);
+    //         }
+    //
+    //         Undo.RecordObject(data, "Update Dialogue Data");
+    //
+    //         data.id = finalId;
+    //         data.dialogueLines = new List<DialogueLine>();
+    //         data.choices = new List<Choice>();
+    //
+    //         foreach (var row in group)
+    //         {
+    //             data.dialogueLines.Add(new DialogueLine { speakerID = row["speakerID"], dialogueText = row["dialogueText"].Replace("\\n", "\n") });
+    //
+    //             if (row.TryGetValue("choices", out string choiceData) && !string.IsNullOrEmpty(choiceData))
+    //             {
+    //                 var choices = new List<Choice>();
+    //                 string[] choicePairs = choiceData.Split(';');
+    //                 foreach (var pair in choicePairs)
+    //                 {
+    //                     if (string.IsNullOrWhiteSpace(pair)) continue;
+    //                     string[] textAndId = pair.Split('>');
+    //                     if (textAndId.Length < 2) continue;
+    //
+    //                     string choiceText = textAndId[0];
+    //                     string nextDialogueKey = textAndId[1];
+    //
+    //                     string nextDialogueFullId = "";
+    //                     if (nextDialogueKey != "0" && !string.IsNullOrEmpty(nextDialogueKey) && keyToNewIdMap.ContainsKey(nextDialogueKey))
+    //                     {
+    //                         nextDialogueFullId = keyToNewIdMap[nextDialogueKey];
+    //                     }
+    //
+    //                     choices.Add(new Choice { choiceText = choiceText, nextDialogueID = nextDialogueFullId });
+    //                 }
+    //                 data.choices = choices;
+    //             }
+    //         }
+    //         EditorUtility.SetDirty(data);
+    //     }
+    // }
 }
 
 

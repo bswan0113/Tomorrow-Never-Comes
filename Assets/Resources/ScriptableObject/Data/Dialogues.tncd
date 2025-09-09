@@ -1,5 +1,0 @@
-dialogueLines,choices
-"0|테스트를 시작합니다.;Character_0001|가장 기본적인 선택지다. 액션은 없다.","알겠습니다.|Dialogue_0001|;그만두겠습니다.|0|"
-"Character_0002|좋아. 이번엔 하나의 선택이 여러 결과를 낳는 경우다.","두 가지를 모두 얻겠다.|Dialogue_0002|AddStatAction_0001,AddStatAction_0002;한 가지만 얻겠다.|Dialogue_0003|AddStatAction_0003"
-"Character_0003|때로는 선택의 여지가 없을 때도 있는 법이지.",""
-"Character_0004|마지막 시험이다.;0|(신중하게 선택해야 한다.)","보상을 받는다.|Dialogue_0004|AddStatAction_0004;명예를 택한다.|Dialogue_0005|;모두 거절하고 떠난다.|0|"

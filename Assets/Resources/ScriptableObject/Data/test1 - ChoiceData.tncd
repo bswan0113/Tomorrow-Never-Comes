@@ -1,0 +1,5 @@
+ID,choiceText,nextDialogueID,actions,//Comment
+CHOICE_ACCEPT_QUEST,"""네, 제가 해보겠습니다.""",DLG_MAYOR_ACCEPT,,
+CHOICE_REJECT_QUEST,"""아니오, 관심 없습니다.""",DLG_MAYOR_REJECT,,
+CHOICE_CONFIRM,"""알겠습니다.""",,,
+CHOICE_GOODBYE,"""안녕히 계세요.""",,,

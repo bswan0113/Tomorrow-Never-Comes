@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 5765511dea6fe994aa2cd25acccb949b
+guid: 797c085df77f2604685aefc883fb8756
 ScriptedImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -8,5 +8,8 @@ ScriptedImporter:
   assetBundleName: 
   assetBundleVariant: 
   script: {fileID: 11500000, guid: 5cbbe11a43f948f7923f731b15436f4e, type: 3}
-  targetTypeAssemblyQualifiedName: CharacterData, Assembly-CSharp, Version=0.0.0.0,
+  targetTypeAssemblyQualifiedName: ChoiceData, Assembly-CSharp, Version=0.0.0.0,
     Culture=neutral, PublicKeyToken=null
+  strategy: 0
+  groupedListField: 
+  groupedListItemTypeAssemblyQualifiedName: 

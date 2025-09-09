@@ -258,51 +258,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   actions:
-  - description: "\uD589\uB3D9\uB825 3 \uC18C\uBAA8"
-    actionType: 0
-    delay: 0
-    unityEvent:
-      m_PersistentCalls:
-        m_Calls:
-        - m_Target: {fileID: 738243633}
-          m_TargetAssemblyTypeName: GameActionHandler, Assembly-CSharp
-          m_MethodName: UseActionPoint
-          m_Mode: 3
-          m_Arguments:
-            m_ObjectArgument: {fileID: 0}
-            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-            m_IntArgument: 3
-            m_FloatArgument: 0
-            m_StringArgument: 
-            m_BoolArgument: 0
-          m_CallState: 2
-    dialogueData: {fileID: -5108778235067047738, guid: c95cf071e2ca358468a3840dff26da95, type: 3}
-  - description: "\uB300\uD654"
-    actionType: 1
-    delay: 0
-    unityEvent:
-      m_PersistentCalls:
-        m_Calls: []
-    dialogueData: {fileID: 11400000, guid: 81fb3e76c25b4374ab3a5af1884f10d9, type: 2}
-  - description: "\uC9C0\uB2A5 5 \uC99D\uAC00"
-    actionType: 0
-    delay: 0
-    unityEvent:
-      m_PersistentCalls:
-        m_Calls:
-        - m_Target: {fileID: 738243633}
-          m_TargetAssemblyTypeName: GameActionHandler, Assembly-CSharp
-          m_MethodName: AddIntellect
-          m_Mode: 3
-          m_Arguments:
-            m_ObjectArgument: {fileID: 0}
-            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-            m_IntArgument: 3
-            m_FloatArgument: 0
-            m_StringArgument: 
-            m_BoolArgument: 0
-          m_CallState: 2
-    dialogueData: {fileID: 0}
+  - {fileID: 0}
 --- !u!4 &350229583
 Transform:
   m_ObjectHideFlags: 0
@@ -356,24 +312,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   actionPointCost: 0
   conditionalEvents: []
-  defaultEvent:
-    m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 1377278254}
-        m_TargetAssemblyTypeName: ActionSequencer, Assembly-CSharp
-        m_MethodName: ExecuteSequence
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
-  onInteractionFailure:
-    m_PersistentCalls:
-      m_Calls: []
+  defaultEvent: {fileID: 1377278254}
+  onInteractionFailure: {fileID: 0}
 --- !u!61 &474247826
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -891,6 +831,51 @@ Transform:
   m_Children: []
   m_Father: {fileID: 682180336}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1014348084
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1014348085}
+  - component: {fileID: 1014348086}
+  m_Layer: 0
+  m_Name: Sequence_FailStudy
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1014348085
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1014348084}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1810709588}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1014348086
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1014348084}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1a4b5a4e4f414b4f9409989545bdf33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  actions: []
 --- !u!1 &1021784300
 GameObject:
   m_ObjectHideFlags: 0
@@ -1011,13 +996,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   actions:
-  - description: "\uC794\uB2E4"
-    actionType: 1
-    delay: 0
-    unityEvent:
-      m_PersistentCalls:
-        m_Calls: []
-    dialogueData: {fileID: -4725622439649760861, guid: c95cf071e2ca358468a3840dff26da95, type: 3}
+  - {fileID: 0}
 --- !u!4 &1377278255
 Transform:
   m_ObjectHideFlags: 0
@@ -1120,25 +1099,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   actions:
-  - description: "\uD589\uB3D9\uB825 2 \uC18C\uBAA8"
-    actionType: 1
-    delay: 0
-    unityEvent:
-      m_PersistentCalls:
-        m_Calls:
-        - m_Target: {fileID: 738243633}
-          m_TargetAssemblyTypeName: GameActionHandler, Assembly-CSharp
-          m_MethodName: UseActionPoint
-          m_Mode: 3
-          m_Arguments:
-            m_ObjectArgument: {fileID: 0}
-            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-            m_IntArgument: 2
-            m_FloatArgument: 0
-            m_StringArgument: 
-            m_BoolArgument: 0
-          m_CallState: 2
-    dialogueData: {fileID: 2039476775787999297, guid: c95cf071e2ca358468a3840dff26da95, type: 3}
+  - {fileID: 0}
 --- !u!4 &1628032195
 Transform:
   m_ObjectHideFlags: 0
@@ -1191,55 +1152,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   actionPointCost: 3
-  conditionalEvents:
-  - description: "\uBA38\uB9AC\uAC00 \uC88B\uC744\uB54C"
-    conditions:
-    - {fileID: 11400000, guid: 0ba5bc514a149d64c80c676253546f5b, type: 2}
-    onConditionsMet:
-      m_PersistentCalls:
-        m_Calls:
-        - m_Target: {fileID: 1628032194}
-          m_TargetAssemblyTypeName: ActionSequencer, Assembly-CSharp
-          m_MethodName: ExecuteSequence
-          m_Mode: 1
-          m_Arguments:
-            m_ObjectArgument: {fileID: 0}
-            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-            m_IntArgument: 0
-            m_FloatArgument: 0
-            m_StringArgument: 
-            m_BoolArgument: 0
-          m_CallState: 2
-  defaultEvent:
-    m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 350229582}
-        m_TargetAssemblyTypeName: ActionSequencer, Assembly-CSharp
-        m_MethodName: ExecuteSequence
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
-  onInteractionFailure:
-    m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 738243633}
-        m_TargetAssemblyTypeName: GameActionHandler, Assembly-CSharp
-        m_MethodName: StartDialogueFromSO
-        m_Mode: 2
-        m_Arguments:
-          m_ObjectArgument: {fileID: -5108778235067047738, guid: c95cf071e2ca358468a3840dff26da95, type: 3}
-          m_ObjectArgumentAssemblyTypeName: DialogueData, Assembly-CSharp
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
+  conditionalEvents: []
+  defaultEvent: {fileID: 350229582}
+  onInteractionFailure: {fileID: 1014348086}
 --- !u!61 &1810709586
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -1356,6 +1271,7 @@ Transform:
   m_Children:
   - {fileID: 350229583}
   - {fileID: 1628032195}
+  - {fileID: 1014348085}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2038266333

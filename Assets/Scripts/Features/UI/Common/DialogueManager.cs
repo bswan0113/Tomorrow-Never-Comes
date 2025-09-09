@@ -152,7 +152,7 @@ public class DialogueManager : MonoBehaviour
 
     // DialogueManager.cs 파일의 ProcessChoice 함수
 
-    public void ProcessChoice(Choice choice)
+    public void ProcessChoice(ChoiceData choice)
     {
         // [변경 없음] 이 함수의 기존 로직은 그대로 유지됩니다.
         bool isEffectivelyNoNextDialogue = string.IsNullOrEmpty(choice.nextDialogueID) || choice.nextDialogueID == noneRegisteredIdentifier;

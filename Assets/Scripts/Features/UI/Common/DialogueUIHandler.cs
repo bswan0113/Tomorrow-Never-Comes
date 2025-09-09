@@ -91,7 +91,7 @@ public class DialogueUIHandler : MonoBehaviour
     /// <summary>
     /// 선택지 목록을 받아 화면에 버튼들을 생성합니다.
     /// </summary>
-    public void ShowChoices(List<Choice> choices)
+    public void ShowChoices(List<ChoiceData> choices)
     {
         // ▼▼▼ 추가 ▼▼▼: 선택지가 표시될 때는 타이핑을 확실히 멈춤
         if (IsTyping)
