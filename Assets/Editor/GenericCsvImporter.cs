@@ -162,7 +162,25 @@ public class GenericCsvImporter : ScriptedImporter
                 return list;
             }
 
-            if (typeof(IDictionary).IsAssignableFrom(type)) { /* ... 딕셔너리 로직 ... */ }
+            if (typeof(IDictionary).IsAssignableFrom(type))
+            {
+                Type keyType = type.GetGenericArguments()[0];
+                Type valueType = type.GetGenericArguments()[1];
+                IDictionary dictionary = (IDictionary)Activator.CreateInstance(type);
+
+                string[] pairs = value.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var pair in pairs)
+                {
+                    string[] keyValue = pair.Split(new[] { ':' }, 2);
+                    if (keyValue.Length == 2)
+                    {
+                        var key = ParseValue(ctx, keyValue[0].Trim(), keyType);
+                        var val = ParseValue(ctx, keyValue[1].Trim(), valueType);
+                        dictionary.Add(key, val);
+                    }
+                }
+                return dictionary;
+            }
 
             if ((type.IsClass && type != typeof(string) && !typeof(UnityEngine.Object).IsAssignableFrom(type)) || (type.IsValueType && !type.IsPrimitive && !type.IsEnum))
             {

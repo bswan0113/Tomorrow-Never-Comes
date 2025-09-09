@@ -1,7 +1,9 @@
-// 경로: Assets/Scripts/ScriptableObjects/ChoiceActions/AddStatAction.cs
+// 파일 경로: Assets/Scripts/ScriptableObjects/Action/AddStatAction.cs
+
+using System.Collections;
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "AddStatAction", menuName = "Game Data/Choice Actions/Add Stat or Money")]
+[CreateAssetMenu(fileName = "AddStatAction", menuName = "Game Actions/Add Stat or Money")]
 public class AddStatAction : BaseAction
 {
     [Tooltip("변경할 스탯의 이름 (PlayerStatus의 프로퍼티 이름과 일치. 예: Intellect, Charm, Money)")]
@@ -10,12 +12,17 @@ public class AddStatAction : BaseAction
     [Tooltip("더하거나 뺄 값 (음수 가능)")]
     public int amount;
 
-    public override void Execute()
+    // [변경] 메서드 시그니처를 BaseAction에 맞게 수정하고, 반환 타입을 IEnumerator로 변경합니다.
+    // executor 파라미터는 이 액션에서 직접 사용하지 않지만, 인터페이스를 맞추기 위해 필요합니다.
+    public override IEnumerator Execute(MonoBehaviour executor)
     {
-        if (PlayerDataManager.Instance == null) return;
+        if (PlayerDataManager.Instance == null)
+        {
+            Debug.LogError("PlayerDataManager.Instance가 씬에 없습니다!", this);
+            yield break; // PlayerDataManager가 없으면 아무것도 하지 않고 즉시 종료
+        }
 
-        // 문자열 기반으로 해당 함수를 동적으로 호출하는 대신,
-        // 명시적으로 분기하여 안정성을 높입니다.
+        // 기존 로직은 그대로 유지합니다.
         switch (targetStatName)
         {
             case "Intellect":
@@ -35,5 +42,8 @@ public class AddStatAction : BaseAction
                 Debug.LogWarning($"[AddStatAction] '{targetStatName}'에 해당하는 스탯 변경 로직이 없습니다.", this);
                 break;
         }
+
+        // [추가] 로직 실행 후 'yield break'를 호출하여 이 코루틴이 즉시 완료되었음을 알립니다.
+        yield break;
     }
 }

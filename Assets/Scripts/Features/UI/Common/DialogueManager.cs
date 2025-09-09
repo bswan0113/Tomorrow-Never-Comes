@@ -154,43 +154,43 @@ public class DialogueManager : MonoBehaviour
 
     public void ProcessChoice(Choice choice)
     {
-        // choice.nextDialogueID가 "0"이나 다른 종료 식별자인지 확인 (기존 로직과 동일하게)
-        bool isEffectivelyNoNextDialogue = string.IsNullOrEmpty(choice.nextDialogueID) || choice.nextDialogueID == "0"; // "0"을 종료 식별자로 가정
-
-        // 이제 actionLogic에 직접 접근할 필요 없이, 리스트의 아이템이 AdvanceDayAction 타입인지 바로 확인합니다.
+        // [변경 없음] 이 함수의 기존 로직은 그대로 유지됩니다.
+        bool isEffectivelyNoNextDialogue = string.IsNullOrEmpty(choice.nextDialogueID) || choice.nextDialogueID == noneRegisteredIdentifier;
         bool containsAdvanceToNextDay = choice.actions != null &&
                                         choice.actions.Any(action => action is AdvanceDayAction);
 
-        // ExecuteChoiceActions를 먼저 호출하여 선택의 결과를 즉시 반영합니다.
-        ExecuteChoiceActions(choice.actions);
-
-        // 대화 종료 조건을 확인합니다.
-        if (isEffectivelyNoNextDialogue || containsAdvanceToNextDay)
+        // [변경] ExecuteChoiceActions를 코루틴으로 실행하고,
+        // 모든 액션이 끝난 뒤에 다음 로직이 실행되도록 콜백(callback)을 넘겨줍니다.
+        StartCoroutine(ExecuteChoiceActionsCoroutine(choice.actions, () =>
         {
-            EndDialogue();
-        }
-        else // 종료 조건이 아닐 때만 다음 대화를 시작합니다.
-        {
-            StartDialogue(choice.nextDialogueID);
-        }
-
-        // 모든 로직이 끝난 후 입력 잠금을 해제하는 것이 더 안전할 수 있습니다.
-        canProcessInput = true;
+            // 이 중괄호 안의 코드는 모든 액션이 완료된 후에 실행됩니다.
+            if (isEffectivelyNoNextDialogue || containsAdvanceToNextDay)
+            {
+                EndDialogue();
+            }
+            else
+            {
+                StartDialogue(choice.nextDialogueID);
+            }
+            canProcessInput = true;
+        }));
     }
 
-    // 메서드의 파라미터 타입도 List<BaseChoiceAction>으로 변경합니다.
-    private void ExecuteChoiceActions(List<BaseAction> actions)
+    // [변경] ExecuteChoiceActions가 코루틴으로 변경되고, 모든 작업이 끝나면 호출할 'onCompleted' 콜백을 받습니다.
+    private IEnumerator ExecuteChoiceActionsCoroutine(List<BaseAction> actions, Action onCompleted)
     {
-        if (actions == null) return;
-
-        foreach (var action in actions)
+        if (actions != null)
         {
-            // action이 null이 아닌지만 확인하면 됩니다. action 자체가 실행 로직을 가진 SO입니다.
-            if (action != null)
+            foreach (var action in actions)
             {
-                action.Execute();
+                if (action != null)
+                {
+                    // 각 액션을 실행하고 끝날 때까지 기다립니다.
+                    yield return StartCoroutine(action.Execute(this));
+                }
             }
         }
+        onCompleted?.Invoke();
     }
 
     private void EndDialogue()
