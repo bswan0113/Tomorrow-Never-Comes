@@ -1,4 +1,0 @@
-targetDay,survivalConditions
-1,"Condition_0001;Condition_0004"
-2,Condition_0002
-3,Condition_0003

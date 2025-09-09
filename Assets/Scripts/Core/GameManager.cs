@@ -135,37 +135,12 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public bool EvaluateCondition(ConditionData condition)
     {
-        if (PlayerDataManager.Instance?.Status == null) return false;
-
-        if (condition.type == ConditionType.StatCheck)
+        if (condition == null)
         {
-            // 리플렉션을 사용하여 PlayerStatus에서 targetStatName과 일치하는 프로퍼티(변수)를 찾음
-            PropertyInfo statProperty = typeof(PlayerStatus).GetProperty(condition.targetStatName);
-
-            if (statProperty == null)
-            {
-                Debug.LogError($"잘못된 스탯 이름: PlayerStatus에 '{condition.targetStatName}' 이라는 스탯이 없습니다.");
-                return false;
-            }
-
-            // 실제 플레이어의 스탯 값을 가져옴 (long 타입으로 변환하여 비교)
-            long currentPlayerValue = Convert.ToInt64(statProperty.GetValue(PlayerDataManager.Instance.Status));
-            long conditionValue = condition.value;
-
-            // 연산자에 따라 비교 수행
-            switch (condition.comparisonOperator)
-            {
-                case Operator.GreaterThan: return currentPlayerValue > conditionValue;
-                case Operator.LessThan: return currentPlayerValue < conditionValue;
-                case Operator.EqualTo: return currentPlayerValue == conditionValue;
-                case Operator.GreaterThanOrEqualTo: return currentPlayerValue >= conditionValue;
-                case Operator.LessThanOrEqualTo: return currentPlayerValue <= conditionValue;
-                default: return false;
-            }
+            Debug.LogWarning("평가하려는 ConditionData가 null입니다.");
+            return false;
         }
-
-        // TODO: 나중에 아이템 조건 등이 추가되면 여기에 else if 블록을 추가
-        return false;
+        return condition.Evaluate();
     }
     private void LoadGameProgress()
     {

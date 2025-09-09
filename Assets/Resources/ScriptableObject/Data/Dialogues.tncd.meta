@@ -1,0 +1,12 @@
+fileFormatVersion: 2
+guid: c95cf071e2ca358468a3840dff26da95
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 5cbbe11a43f948f7923f731b15436f4e, type: 3}
+  targetTypeAssemblyQualifiedName: DialogueData, Assembly-CSharp, Version=0.0.0.0,
+    Culture=neutral, PublicKeyToken=null

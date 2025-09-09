@@ -150,82 +150,45 @@ public class DialogueManager : MonoBehaviour
         return $"[ID:{speakerID} 없음]";
     }
 
+    // DialogueManager.cs 파일의 ProcessChoice 함수
+
     public void ProcessChoice(Choice choice)
     {
-        // 1. 다음 대화 ID가 비어있거나 "0"인 경우, 실질적으로 다음 대화가 없다고 판단합니다.
-        bool isEffectivelyNoNextDialogue = string.IsNullOrEmpty(choice.nextDialogueID) || choice.nextDialogueID == noneRegisteredIdentifier;
+        // choice.nextDialogueID가 "0"이나 다른 종료 식별자인지 확인 (기존 로직과 동일하게)
+        bool isEffectivelyNoNextDialogue = string.IsNullOrEmpty(choice.nextDialogueID) || choice.nextDialogueID == "0"; // "0"을 종료 식별자로 가정
 
-        // 2. 날짜 전환 액션이 이 선택지에 포함되어 있는지 확인합니다.
-        //    choice.actions가 null일 가능성에 대비하여 안전하게 체크합니다.
-        bool containsAdvanceToNextDay = choice.actions != null && choice.actions.Any(a => a.actionType == ChoiceActionType.AdvanceToNextDay);
+        // 이제 actionLogic에 직접 접근할 필요 없이, 리스트의 아이템이 AdvanceDayAction 타입인지 바로 확인합니다.
+        bool containsAdvanceToNextDay = choice.actions != null &&
+                                        choice.actions.Any(action => action is AdvanceDayAction);
 
-        // Debugging logs (선택적으로 다시 추가하여 확인 가능)
-        // Debug.Log($"[ProcessChoice] Processing choice: '{choice.choiceText}'");
-        // Debug.Log($"[ProcessChoice] nextDialogueID: '{choice.nextDialogueID}' (isEffectivelyNoNextDialogue: {isEffectivelyNoNextDialogue})");
-        // Debug.Log($"[ProcessChoice] containsAdvanceToNextDay: {containsAdvanceToNextDay}, Total actions: {(choice.actions != null ? choice.actions.Count : 0)}");
-
-        // 3. 만약 실질적으로 다음 대화가 없거나, 날짜 전환 액션이 있다면 현재 대화를 종료합니다.
-        //    이것이 UI가 사라지고 대화 상태가 리셋되는 핵심 지점입니다.
-        if (isEffectivelyNoNextDialogue || containsAdvanceToNextDay)
-        {
-            // Debug.Log("[ProcessChoice] Calling EndDialogue()...");
-            EndDialogue();
-        }
-        // else
-        // {
-        //     Debug.Log("[ProcessChoice] NOT calling EndDialogue(). Proceeding to next dialogue/actions.");
-        // }
-
-        // 4. 선택지에 연결된 액션들을 실행합니다.
+        // ExecuteChoiceActions를 먼저 호출하여 선택의 결과를 즉시 반영합니다.
         ExecuteChoiceActions(choice.actions);
 
-        canProcessInput = true; // 입력 잠금 해제
-
-        // 5. 모든 액션 실행 후, 다음 대화가 실질적으로 존재하고 날짜 전환 액션이 없었을 경우에만 새로운 대화를 시작합니다.
-        //    날짜 전환 액션이 있었다면 이미 씬이 바뀌었을 것이므로 이 StartDialogue는 실행되지 않습니다.
-        if (!isEffectivelyNoNextDialogue && !containsAdvanceToNextDay) // isEffectivelyNoNextDialogue의 반대 조건 사용
+        // 대화 종료 조건을 확인합니다.
+        if (isEffectivelyNoNextDialogue || containsAdvanceToNextDay)
         {
-            // Debug.Log($"[ProcessChoice] Starting next dialogue: '{choice.nextDialogueID}'");
+            EndDialogue();
+        }
+        else // 종료 조건이 아닐 때만 다음 대화를 시작합니다.
+        {
             StartDialogue(choice.nextDialogueID);
         }
+
+        // 모든 로직이 끝난 후 입력 잠금을 해제하는 것이 더 안전할 수 있습니다.
+        canProcessInput = true;
     }
 
-    private void ExecuteChoiceActions(List<ChoiceAction> actions)
+    // 메서드의 파라미터 타입도 List<BaseChoiceAction>으로 변경합니다.
+    private void ExecuteChoiceActions(List<BaseAction> actions)
     {
-        if (actions == null || actions.Count == 0) return;
-
-        Debug.Log($"<color=cyan>선택지 액션 {actions.Count}개를 실행합니다...</color>");
+        if (actions == null) return;
 
         foreach (var action in actions)
         {
-            // 각 액션에 필요한 매니저가 있는지 먼저 확인하는 것이 더 안전합니다.
-            switch (action.actionType)
+            // action이 null이 아닌지만 확인하면 됩니다. action 자체가 실행 로직을 가진 SO입니다.
+            if (action != null)
             {
-                // --- PlayerDataManager 관련 ---
-                case ChoiceActionType.AddIntellect:
-                    if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.AddIntellect(action.amount);
-                    break;
-                case ChoiceActionType.AddCharm:
-                    if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.AddCharm(action.amount);
-                    break;
-                // ... (다른 스탯들도 마찬가지) ...
-
-                // --- GameManager 관련 ---
-                case ChoiceActionType.AdvanceToNextDay:
-                    // 이 액션은 보통 대화가 끝난 후 마지막에 실행되어야 하므로,
-                    // 즉시 실행하는 것이 맞는지 기획적으로 고려해야 합니다.
-                    // 지금 구조에서는 즉시 실행됩니다.
-                    if (GameManager.Instance != null)
-                    {
-                        // 날짜를 넘기기 전에 플레이어 데이터 저장은 필수
-                        PlayerDataManager.Instance?.SavePlayerData();
-                        GameManager.Instance.AdvanceToNextDay();
-                    }
-                    break;
-
-                case ChoiceActionType.None:
-                default:
-                    break;
+                action.Execute();
             }
         }
     }
