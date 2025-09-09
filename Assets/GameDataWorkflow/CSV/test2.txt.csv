@@ -1,7 +1,0 @@
-dialogueKey,speakerID,dialogueText,choices
-Day1_Morning,,"1일차 아침이 밝았다. 무엇을 할까?",
-Day1_Computer_Intro,Character_0002,"컴퓨터를 켜니 조력자에게서 메시지가 와 있다. '안녕, 첫 번째 날은 어때?'","1. 누구시죠?>Day1_Computer_Choice1;2. 괜찮아요.>Day1_Computer_Choice2"
-Day1_Computer_Choice1,Character_0002,"나? 그냥 지켜보는 사람일 뿐. 앞으로 종종 보게 될 거야.",
-Day1_Computer_Choice2,Character_0002,"그거 다행이군. 앞으로 쉽지 않을 테니 말이야.",
-Day1_Bed_Intro,,"침대에 눕는다. 하루를 마무리할까?","1. 잔다>Day1_Bed_End;2. 아직이야>0"
-Day1_Bed_End,,"(잠에 들며 하루가 저문다)",
