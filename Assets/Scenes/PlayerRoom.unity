@@ -813,11 +813,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   parentReference:
-    TypeName: Core.GameLifetimeScope
+    TypeName: Core.LifetimeScope.Parent.GameLifetimeScope
   autoRun: 1
   autoInjectGameObjects:
   - {fileID: 1461711283}
-  - {fileID: 1705810286}
 --- !u!4 &1148353166
 Transform:
   m_ObjectHideFlags: 0
@@ -945,11 +944,6 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: 2256633913276030669, guid: f412198d39c9aa34a8d8896a84d489e0, type: 3}
   m_PrefabInstance: {fileID: 1585082085}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &1705810286 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 1381867592702290413, guid: 7ff8b69a99196f546a0d586421cebd93, type: 3}
-  m_PrefabInstance: {fileID: 83993528}
   m_PrefabAsset: {fileID: 0}
 --- !u!1 &2038266333
 GameObject:

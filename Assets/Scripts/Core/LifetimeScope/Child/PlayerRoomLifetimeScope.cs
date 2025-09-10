@@ -1,11 +1,13 @@
 using Core.Interface;
+using Features.Player;
 using Features.UI.Common;
+using Features.World;
 using VContainer;
 using VContainer.Unity;
 
-namespace Core.SceneLifetimeScope
+namespace Core.LifetimeScope.Child
 {
-    public class PlayerRoomLifetimeScope : LifetimeScope
+    public class PlayerRoomLifetimeScope : VContainer.Unity.LifetimeScope
     {
         protected override void Configure(IContainerBuilder builder)
         {
@@ -15,7 +17,7 @@ namespace Core.SceneLifetimeScope
             builder.RegisterComponentInHierarchy<StatusUIController>();
             builder.RegisterComponentInHierarchy<ActionSequencer>();
             builder.RegisterComponentInHierarchy<PlayerController>();
-            builder.RegisterComponentInHierarchy<InteractionObject>();
+            builder.RegisterComponentInHierarchy<InteractionObject>().AsSelf();
 
         }
     }

@@ -3,6 +3,7 @@ using UnityEditor;
 using System.Reflection;
 using System.Linq;
 using System;
+using Features.Player;
 
 [CustomEditor(typeof(StatCheckCondition))]
 public class StatCheckConditionEditor : Editor
@@ -13,7 +14,7 @@ public class StatCheckConditionEditor : Editor
     private void OnEnable()
     {
         // PlayerStatus 클래스에서 long 또는 int 타입의 public 프로퍼티만 가져옵니다.
-        statNames = typeof(PlayerStatus)
+        statNames = typeof(PlayerStatsData)
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(prop => prop.PropertyType == typeof(long) || prop.PropertyType == typeof(int))
             .Select(prop => prop.Name)

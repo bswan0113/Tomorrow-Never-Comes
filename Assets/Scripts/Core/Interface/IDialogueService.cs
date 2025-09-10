@@ -1,8 +1,9 @@
+using System;
+
 namespace Core.Interface
 {
     // Scripts/Core/Interface/IDialogueService.cs
-    using System;
-    using System.Collections.Generic; // ChoiceData, BaseAction 등을 위해 필요
+    // ChoiceData, BaseAction 등을 위해 필요
 
 // DialogueData, CharacterData, ChoiceData, DialogueLine, BaseAction 등의 클래스 정의가 필요합니다.
 // 이들은 ScriptableObject이거나 일반 C# 클래스일 수 있습니다.

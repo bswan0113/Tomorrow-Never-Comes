@@ -2,7 +2,6 @@
 
 using System.Collections;
 using Core.Interface;
-using Core.Interface.Core.Interface;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "New Dialogue Action", menuName = "Game Actions/Start Dialogue Action")]

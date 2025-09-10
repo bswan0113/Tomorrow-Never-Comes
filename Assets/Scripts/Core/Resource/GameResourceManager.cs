@@ -1,11 +1,11 @@
 // Scripts/UI/Manager/GameResourceManager.cs
-using UnityEngine;
+
 using System.Collections.Generic;
 using System.Linq;
 using Core.Interface;
+using UnityEngine;
 
-
-namespace Manager
+namespace Core.Resource
 {
     // IGameResourceService 인터페이스 구현 추가
     public class GameResourceManager : MonoBehaviour, IGameResourceService

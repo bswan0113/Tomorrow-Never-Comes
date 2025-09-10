@@ -1,11 +1,9 @@
-using Core.Interface;
+using System;
+using Core.Data.Interface;
+using UnityEngine;
 
-namespace Core
+namespace Core.LifetimeScope.Parent
 {
-    using VContainer.Unity;
-    using UnityEngine;
-    using System;
-
     public class DatabaseCleanup : IDisposable
     {
         private readonly IDatabaseAccess _databaseAccess;

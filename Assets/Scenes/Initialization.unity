@@ -386,9 +386,9 @@ GameObject:
   - component: {fileID: 737195636}
   - component: {fileID: 737195635}
   - component: {fileID: 737195634}
-  - component: {fileID: 737195633}
   - component: {fileID: 737195631}
   - component: {fileID: 737195638}
+  - component: {fileID: 737195639}
   m_Layer: 0
   m_Name: GameLifetimeScope
   m_TagString: Untagged
@@ -406,18 +406,6 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: dce400efb6a8435ba77a7cbbf4aaa67d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!114 &737195633
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 737195630}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c7f0921c99669e249ac921afb851876f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
 --- !u!114 &737195634
@@ -497,9 +485,21 @@ MonoBehaviour:
   autoInjectGameObjects: []
   sceneTransitionManager: {fileID: 737195635}
   gameResourceManager: {fileID: 737195631}
-  dataManager: {fileID: 737195633}
+  dataManager: {fileID: 737195639}
   playerDataManager: {fileID: 737195634}
   dialogueManager: {fileID: 737195636}
+--- !u!114 &737195639
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 737195630}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 95cd7b5981721934eaafebc75466dcb2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1366368770
 GameObject:
   m_ObjectHideFlags: 0

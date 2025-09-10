@@ -1,15 +1,19 @@
+using System.IO;
+using Core.Data;
+using Core.Data.Impl;
+using Core.Data.Interface;
 using Core.Interface;
 using Core.Interface.Core.Interface;
-using Manager;
+using Core.Resource;
+using Features.Player;
+using Features.UI.Common;
+using UnityEngine;
+using VContainer;
+using VContainer.Unity;
 
-namespace Core
+namespace Core.LifetimeScope.Parent
 {
-    using VContainer;
-    using VContainer.Unity;
-    using UnityEngine;
-    using System.IO;
-
-public class GameLifetimeScope : LifetimeScope
+    public class GameLifetimeScope : VContainer.Unity.LifetimeScope
 {
     [Header("Core Components")]
     [SerializeField] private SceneTransitionManager sceneTransitionManager;
@@ -27,23 +31,22 @@ public class GameLifetimeScope : LifetimeScope
     protected override void Configure(IContainerBuilder builder)
     {
 
+        builder.Register<SchemaManager>(Lifetime.Singleton);
         // 1. DatabaseAccess 등록
         string dbPath = Path.Combine(Application.persistentDataPath, "PlayerSaveData.db");
         builder.Register<IDatabaseAccess>(container => {
-            var dbAccess = new DatabaseAccess(dbPath);
-            dbAccess.OpenConnection();
+            // DatabaseAccess가 SchemaManager에 의존하므로, VContainer에서 SchemaManager 인스턴스를 가져와 전달합니다.
+            var schemaManager = container.Resolve<SchemaManager>();
+            var dbAccess = new DatabaseAccess(dbPath, schemaManager);
             return dbAccess;
         }, Lifetime.Singleton);
 
-        // 어플리케이션 종료 시 DB 연결 닫기
-        builder.RegisterEntryPoint<DatabaseCleanup>();
 
-        // 2. DataManager 등록
-        builder.RegisterComponent(dataManager).As<IDataService>();
-        builder.RegisterBuildCallback(container => {
-            var dbAccess = container.Resolve<IDatabaseAccess>();
-            dataManager.Initialize(dbAccess);
-        });
+
+        builder.RegisterComponentInHierarchy<DataManager>()
+            .AsImplementedInterfaces()
+            .AsSelf()
+            .WithParameter<IDatabaseAccess>(container => container.Resolve<IDatabaseAccess>());
 
         // 3. GameResourceManager 등록
         builder.RegisterComponent(gameResourceManager).As<IGameResourceService>();
@@ -75,6 +78,7 @@ public class GameLifetimeScope : LifetimeScope
             dialogueManager.Initialize(gameResourceService, gameManager);
         });
 
+        builder.RegisterEntryPoint<DatabaseCleanup>();
         // 8. EntryPoint 등록 (게임 시작)
         builder.RegisterEntryPoint<GameStarter>();
     }

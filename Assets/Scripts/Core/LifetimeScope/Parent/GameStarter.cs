@@ -1,8 +1,8 @@
-namespace Core
-{
-    using VContainer.Unity;
-    using UnityEngine;
+using UnityEngine;
+using VContainer.Unity;
 
+namespace Core.LifetimeScope.Parent
+{
     public class GameStarter : IStartable
     {
         private readonly GameManager _gameManager;

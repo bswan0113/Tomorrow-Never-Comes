@@ -23,7 +23,6 @@ namespace Features.UI.Common
 
         public void Start()
         {
-            // DialogueUIHandler를 DialogueManager에 등록
             _dialogueService.RegisterDialogueUI(_dialogueUIHandler);
             Debug.Log("DialogueUIHandler가 DialogueManager에 성공적으로 등록되었습니다.");
         }

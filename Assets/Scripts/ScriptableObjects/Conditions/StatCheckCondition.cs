@@ -2,6 +2,7 @@
 using UnityEngine;
 using System;
 using Core.Interface;
+using Features.Player;
 using UnityEngine.Playables;
 
 [CreateAssetMenu(fileName = "StatCheckCondition", menuName = "Game Data/Conditions/Stat Check")]
@@ -19,14 +20,14 @@ public class StatCheckCondition : BaseCondition
 
     public override bool IsMet()
     {
-        if (playerService == null || playerService.Status == null)
+        if (playerService == null || playerService.StatsData == null)
         {
             Debug.LogError("[StatCheckCondition] PlayerDataManager 또는 PlayerStatus가 초기화되지 않았습니다.");
             return false;
         }
 
-        var playerStatus = playerService.Status;
-        var propertyInfo = typeof(PlayerStatus).GetProperty(targetStatName);
+        var playerStatus = playerService.StatsData;
+        var propertyInfo = typeof(PlayerStatsData).GetProperty(targetStatName);
 
         if (propertyInfo == null)
         {
