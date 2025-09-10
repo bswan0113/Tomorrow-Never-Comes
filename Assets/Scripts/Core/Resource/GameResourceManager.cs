@@ -2,36 +2,29 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
+using Core.Interface;
 
-namespace Manager // 주인님의 패키징 구조에 맞춰 네임스페이스를 사용합니다.
+
+namespace Manager
 {
-    public class GameResourceManager : MonoBehaviour
+    // IGameResourceService 인터페이스 구현 추가
+    public class GameResourceManager : MonoBehaviour, IGameResourceService
     {
-        public static GameResourceManager Instance { get; private set; }
 
-        // 모든 GameData를 id를 키로 하여 저장하는 단일 데이터베이스
         private Dictionary<string, GameData> gameDatabase;
 
-        void Awake()
-        {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(this.gameObject);
-                return;
-            }
-            Instance = this;
-            DontDestroyOnLoad(this.gameObject);
 
+        // 컴포지션 루트에서 호출될 초기화 메서드
+        public void Initialize()
+        {
             LoadAllGameData();
-            Debug.Log("GameResourceManager Instance Created");
+            Debug.Log("GameResourceManager Initialized and Data Loaded.");
         }
 
         private void LoadAllGameData()
         {
-            // 1. Resources 폴더에서 '사진첩(DataImportContainer)'을 모두 불러옵니다.
             var allContainers = Resources.LoadAll<DataImportContainer>("");
 
-            // 2. 모든 사진첩에서 '사진(GameData)'들을 꺼내 하나의 리스트로 합칩니다.
             var allData = new List<GameData>();
             foreach (var container in allContainers)
             {
@@ -44,9 +37,6 @@ namespace Manager // 주인님의 패키징 구조에 맞춰 네임스페이스�
                 }
             }
 
-            // --- 이하 로직은 기존 코드와 완전히 동일합니다 ---
-
-            // 3. 중복 ID가 있는지 검사하고, 있다면 경고를 출력합니다.
             var duplicates = allData.GroupBy(data => data.id)
                 .Where(group => group.Count() > 1)
                 .Select(group => group.Key);
@@ -59,19 +49,21 @@ namespace Manager // 주인님의 패키징 구조에 맞춰 네임스페이스�
                 }
             }
 
-            // 4. ID를 Key로 하여 Dictionary에 저장합니다.
             gameDatabase = allData.ToDictionary(data => data.id, data => data);
             Debug.Log($"<color=cyan>{gameDatabase.Count}개의 게임 데이터를 로드했습니다.</color>");
         }
 
         /// <summary>
-        /// ID와 타입(T)을 이용해 게임 데이터를 가져옵니다.
+        /// ID와 타입(T)을 이용해 게임 데이터를 가져옵니다. (IGameResourceService 인터페이스에 추가 필요)
         /// </summary>
-        /// <typeparam name="T">가져올 데이터의 타입 (SpellData, MagicBookData 등)</typeparam>
-        /// <param name="id">찾고자 하는 데이터의 ID</param>
-        /// <returns>요청한 타입의 데이터. 없으면 null을 반환합니다.</returns>
         public T GetDataByID<T>(string id) where T : GameData
         {
+            if (gameDatabase == null)
+            {
+                Debug.LogError("GameResourceManager: gameDatabase가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
+                return null;
+            }
+
             if (gameDatabase.TryGetValue(id, out GameData data))
             {
                 if (data is T requestedData)
@@ -88,17 +80,16 @@ namespace Manager // 주인님의 패키징 구조에 맞춰 네임스페이스�
             Debug.LogWarning($"요청한 ID '{id}'를 가진 데이터를 찾을 수 없습니다!");
             return null;
         }
-        public List<T> GetAllDataOfType<T>() where T : GameData
+
+        // IGameResourceService 인터페이스 메서드 구현
+        public T[] GetAllDataOfType<T>() where T : GameData
         {
-            return gameDatabase.Values.OfType<T>().ToList();
-        }
-        void OnDestroy()
-        {
-            Debug.Log("Destory");
+            if (gameDatabase == null)
+            {
+                Debug.LogError("GameResourceManager: gameDatabase가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
+                return new T[0]; // 빈 배열 반환
+            }
+            return gameDatabase.Values.OfType<T>().ToArray(); // List에서 Array로 반환 타입 변경 (인터페이스에 따라)
         }
     }
-
-
-
-
 }

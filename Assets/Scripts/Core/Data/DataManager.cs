@@ -1,65 +1,55 @@
+// using System; // 필요한 네임스페이스들은 그대로 유지
+
 using System;
 using UnityEngine;
 using System.Collections.Generic;
 using System.IO;
+using Core.Interface;
+using Core.Interface.Core.Interface;
 using Newtonsoft.Json;
 
-public class DataManager : MonoBehaviour
+
+
+public class DataManager : MonoBehaviour, IDataService // IDataService 인터페이스 구현 추가
 {
-    // --- 싱글턴 설정 ---
-    private static DataManager _instance;
-    public static DataManager Instance
-    {
-        get
-        {
-            if (_instance == null)
-            {
-                GameObject go = new GameObject("DataManager");
-                _instance = go.AddComponent<DataManager>();
-            }
-            return _instance;
-        }
-    }
+    // --- 싱글턴 설정 --- <- 제거
 
     private Dictionary<string, string> m_SQLQueries;
 
     // --- DB 접근 및 데이터 ---
-    private DatabaseAccess m_DB;
+    // DatabaseAccess는 외부에서 주입받도록 변경
+    private IDatabaseAccess _dbAccess; // 이제 인터페이스 타입으로 의존성을 저장
+
+    // HasSaveData는 private set이므로 생성자 또는 Initialize에서 설정해야 합니다.
     public bool HasSaveData { get; private set; } = false;
 
-    void Awake()
+
+
+    public void Initialize(IDatabaseAccess dbAccess)
     {
-        // --- 싱글턴 인스턴스 관리 ---
-        if (_instance != null && _instance != this)
+        _dbAccess = dbAccess ?? throw new ArgumentNullException(nameof(dbAccess));
+
+        // DB 연결은 DatabaseAccess 자체에서 관리하는 것이 더 적절합니다.
+        // DataManager는 이미 연결된 DatabaseAccess를 사용한다고 가정합니다.
+        // P0 문제점 "OnApplicationPause/Focus 처리 미흡"은 DatabaseAccess에서 처리하는 것이 좋습니다.
+
+        LoadSQLQueries();
+        InitializeDatabaseTables();
+        LoadAllGameData(); // 초기 로드 후 HasSaveData 설정
+
+        Debug.Log("DataManager Initialized.");
+    }
+
+    public void InsertData(string tableName, string[] columns, object[] values)
+    {
+        if (_dbAccess == null)
         {
-            Destroy(this.gameObject);
+            Debug.LogError("DataManager: DatabaseAccess가 초기화되지 않았습니다.");
             return;
         }
-        _instance = this;
-        DontDestroyOnLoad(this.gameObject);
-
-        // --- 모든 데이터 로드 ---
-        Debug.LogWarning($"[DataManager AWAKE] DataManager ID: {this.GetInstanceID()} / DB 초기화를 진행합니다.", this.gameObject);
-        LoadSQLQueries();
-
-        // <<-- 변경점 1: DB 객체 생성 및 연결을 Awake에서 한 번만 수행합니다.
-        string dbPath = Path.Combine(Application.persistentDataPath, "PlayerSaveData.db");
-        m_DB = new DatabaseAccess(dbPath);
-        m_DB.OpenConnection(); // 여기서 연결을 엽니다.
-
-        InitializeDatabaseTables();
-        LoadAllGameData();
+        _dbAccess.InsertInto(tableName, columns, values);
     }
 
-    // <<-- 변경점 2: 게임 종료 시 호출되는 OnApplicationQuit() 에서 연결을 닫습니다.
-    private void OnApplicationQuit()
-    {
-        if (m_DB != null)
-        {
-            m_DB.CloseConnection();
-            Debug.Log("Database connection closed on application quit.");
-        }
-    }
 
     private void LoadSQLQueries()
     {
@@ -75,9 +65,16 @@ public class DataManager : MonoBehaviour
 
     private void InitializeDatabaseTables()
     {
+        if (_dbAccess == null)
+        {
+            Debug.LogError("DataManager: DatabaseAccess가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
+            return;
+        }
+
         foreach (var queryPair in m_SQLQueries)
         {
-            m_DB.ExecuteNonQuery(queryPair.Value);
+            // P0: SQL 식별자 문자열 삽입 취약 - 이 부분은 나중에 개선해야 합니다.
+            _dbAccess.ExecuteNonQuery(queryPair.Value);
             Debug.Log($"Executed table creation query: {queryPair.Key}");
         }
         Debug.Log("Database tables are verified.");
@@ -85,77 +82,85 @@ public class DataManager : MonoBehaviour
 
     public void LoadAllGameData()
     {
+        if (_dbAccess == null)
+        {
+            Debug.LogError("DataManager: DatabaseAccess가 초기화되지 않았습니다.");
+            return;
+        }
+
         var loadedData = LoadData("PlayerStats", "SaveSlotID", 1);
 
-        if (loadedData != null && loadedData.Count > 0)
-        {
-            HasSaveData = true;
-        }
-        else
-        {
-            HasSaveData = false;
-        }
+        HasSaveData = (loadedData != null && loadedData.Count > 0);
+
+        Debug.Log($"DataManager: HasSaveData = {HasSaveData}");
     }
 
+    // IDataService 인터페이스에 SaveAllGameData는 현재 정의되어 있지 않으므로,
+    // 필요하다면 인터페이스에 추가하거나 다른 방식으로 처리해야 합니다.
     public void SaveAllGameData()
     {
-        Debug.Log("모든 게임 데이터를 저장합니다...");
+        Debug.Log("모든 게임 데이터를 저장합니다... (이 메서드는 아직 외부에서 호출되지 않을 수 있습니다)");
         // 예시:
         // UpdateData("PlayerStatus", new string[]{"Level"}, new object[]{Status.Level}, "PlayerID", 1);
     }
 
-    // 새 게임 시작 시 데이터를 초기화하는 메서드
+    // 새 게임 시작 시 데이터를 초기화하는 메서드 (IDataService에 포함)
     public void CreateNewGameData()
     {
-        // <<-- 변경점 3: 불필요한 Open/Close 로직을 모두 제거했습니다.
-        if (m_DB == null)
+        if (_dbAccess == null)
         {
-            Debug.LogError("FATAL ERROR: m_DB is null. DataManager initialization failed.");
+            Debug.LogError("FATAL ERROR: DatabaseAccess가 초기화되지 않았습니다. DataManager initialization failed.");
             return;
         }
 
-        // 여기에 새로운 게임 데이터(기본 스탯 등)를 DB에 INSERT 하는 로직을 추가합니다.
-        // 예: SaveData("PlayerStatus", new string[]{"HP", "Intellect"}, new object[]{100, 10});
-        m_DB.DeleteContents("GameProgress");
-        m_DB.InsertInto("GameProgress", new string[]{"SaveSlotID", "CurrentDay"}, new object[]{1, 1});
+        _dbAccess.DeleteContents("GameProgress");
+        _dbAccess.InsertInto("GameProgress", new string[]{"SaveSlotID", "CurrentDay"}, new object[]{1, 1});
 
         HasSaveData = true;
         Debug.Log("New game data created.");
     }
 
 
-    // --- 범용 CRUD 메서드 ---
+    // --- 범용 CRUD 메서드 (IDataService 인터페이스 메서드 구현) ---
 
-    /// <summary>
-    /// 특정 테이블에서 조건에 맞는 데이터를 불러옵니다.
-    /// </summary>
     public List<Dictionary<string, object>> LoadData(string tableName, string whereCol, object whereValue)
     {
-        // <<-- 변경점 4: 모든 CRUD 메서드에서 반복적인 연결/해제 코드를 제거하여 코드를 간결하고 효율적으로 만듭니다.
-        return m_DB.SelectWhere(tableName, new string[] { whereCol }, new string[] { "=" }, new object[] { whereValue });
+        if (_dbAccess == null)
+        {
+            Debug.LogError("DataManager: DatabaseAccess가 초기화되지 않았습니다.");
+            return null;
+        }
+        // P0: SQL 식별자 문자열 삽입 취약 - 이 부분도 나중에 개선해야 합니다.
+        return _dbAccess.SelectWhere(tableName, new string[] { whereCol }, new string[] { "=" }, new object[] { whereValue });
     }
 
-    /// <summary>
-    /// 특정 테이블에 새로운 데이터 행을 삽입합니다.
-    /// </summary>
     public void SaveData(string tableName, string[] columns, object[] values)
     {
-        m_DB.InsertInto(tableName, columns, values);
+        if (_dbAccess == null)
+        {
+            Debug.LogError("DataManager: DatabaseAccess가 초기화되지 않았습니다.");
+            return;
+        }
+        _dbAccess.InsertInto(tableName, columns, values);
     }
 
-    /// <summary>
-    /// 특정 테이블에서 조건에 맞는 데이터 행을 수정합니다.
-    /// </summary>
     public void UpdateData(string tableName, string[] updateCols, object[] updateValues, string whereCol, object whereValue)
     {
-        m_DB.UpdateSet(tableName, updateCols, updateValues, whereCol, whereValue);
+        if (_dbAccess == null)
+        {
+            Debug.LogError("DataManager: DatabaseAccess가 초기화되지 않았습니다.");
+            return;
+        }
+        _dbAccess.UpdateSet(tableName, updateCols, updateValues, whereCol, whereValue);
     }
 
-    /// <summary>
-    /// 특정 테이블에서 조건에 맞는 데이터 행을 삭제합니다.
-    /// </summary>
     public void DeleteData(string tableName, string whereCol, object whereValue)
     {
-        m_DB.DeleteWhere(tableName, whereCol, whereValue);
+        if (_dbAccess == null)
+        {
+            Debug.LogError("DataManager: DatabaseAccess가 초기화되지 않았습니다.");
+            return;
+        }
+        _dbAccess.DeleteWhere(tableName, whereCol, whereValue);
     }
 }

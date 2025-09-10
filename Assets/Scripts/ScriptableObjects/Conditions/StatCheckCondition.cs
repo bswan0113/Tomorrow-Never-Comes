@@ -1,6 +1,8 @@
 // 경로: Assets/Scripts/ScriptableObjects/Conditions/StatCheckCondition.cs
 using UnityEngine;
 using System;
+using Core.Interface;
+using UnityEngine.Playables;
 
 [CreateAssetMenu(fileName = "StatCheckCondition", menuName = "Game Data/Conditions/Stat Check")]
 public class StatCheckCondition : BaseCondition
@@ -13,15 +15,17 @@ public class StatCheckCondition : BaseCondition
     public Operator comparisonOperator;
     public long value;
 
+    [SerializeField] IPlayerService playerService;
+
     public override bool IsMet()
     {
-        if (PlayerDataManager.Instance == null || PlayerDataManager.Instance.Status == null)
+        if (playerService == null || playerService.Status == null)
         {
             Debug.LogError("[StatCheckCondition] PlayerDataManager 또는 PlayerStatus가 초기화되지 않았습니다.");
             return false;
         }
 
-        var playerStatus = PlayerDataManager.Instance.Status;
+        var playerStatus = playerService.Status;
         var propertyInfo = typeof(PlayerStatus).GetProperty(targetStatName);
 
         if (propertyInfo == null)

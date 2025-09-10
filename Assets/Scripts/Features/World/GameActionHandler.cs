@@ -12,61 +12,61 @@ public class GameActionHandler : MonoBehaviour
 {
     // --- GameManager 관련 행동 ---
 
-    public void UseActionPoint(int amount)
-    {
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.UseActionPoint(amount);
-        }
-    }
-
-    public void AdvanceToNextDay()
-    {
-        // 날을 마치기 전에는 반드시 저장을 먼저 호출
-        if (PlayerDataManager.Instance != null)
-        {
-            PlayerDataManager.Instance.SavePlayerData();
-        }
-
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.AdvanceToNextDay();
-        }
-    }
-
-    // --- PlayerDataManager 관련 행동 ---
-
-    public void AddIntellect(int amount)
-    {
-        if (PlayerDataManager.Instance != null)
-        {
-            PlayerDataManager.Instance.AddIntellect(amount);
-        }
-    }
-
-    public void AddCharm(int amount)
-    {
-        if (PlayerDataManager.Instance != null)
-        {
-            PlayerDataManager.Instance.AddCharm(amount);
-        }
-    }
-
-    // --- DialogueManager 관련 행동 ---
-
-    public void StartDialogue(string dialogueID)
-    {
-        if (DialogueManager.Instance != null)
-        {
-            DialogueManager.Instance.StartDialogue(dialogueID);
-        }
-    }
-
-    public void StartDialogueFromSO(DialogueData data)
-    {
-        if (DialogueManager.Instance != null && data != null)
-        {
-            DialogueManager.Instance.StartDialogue(data);
-        }
-    }
+    // public void UseActionPoint(int amount)
+    // {
+    //     if (GameManager.Instance != null)
+    //     {
+    //         GameManager.Instance.UseActionPoint(amount);
+    //     }
+    // }
+    //
+    // public void AdvanceToNextDay()
+    // {
+    //     // 날을 마치기 전에는 반드시 저장을 먼저 호출
+    //     if (PlayerDataManager.Instance != null)
+    //     {
+    //         PlayerDataManager.Instance.SavePlayerData();
+    //     }
+    //
+    //     if (GameManager.Instance != null)
+    //     {
+    //         GameManager.Instance.AdvanceToNextDay();
+    //     }
+    // }
+    //
+    // // --- PlayerDataManager 관련 행동 ---
+    //
+    // public void AddIntellect(int amount)
+    // {
+    //     if (PlayerDataManager.Instance != null)
+    //     {
+    //         PlayerDataManager.Instance.AddIntellect(amount);
+    //     }
+    // }
+    //
+    // public void AddCharm(int amount)
+    // {
+    //     if (PlayerDataManager.Instance != null)
+    //     {
+    //         PlayerDataManager.Instance.AddCharm(amount);
+    //     }
+    // }
+    //
+    // // --- DialogueManager 관련 행동 ---
+    //
+    // public void StartDialogue(string dialogueID)
+    // {
+    //     if (DialogueManager.Instance != null)
+    //     {
+    //         DialogueManager.Instance.StartDialogue(dialogueID);
+    //     }
+    // }
+    //
+    // public void StartDialogueFromSO(DialogueData data)
+    // {
+    //     if (DialogueManager.Instance != null && data != null)
+    //     {
+    //         DialogueManager.Instance.StartDialogue(data);
+    //     }
+    // }
 }

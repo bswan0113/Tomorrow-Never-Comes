@@ -1,6 +1,7 @@
 // 파일 경로: Assets/Scripts/ScriptableObjects/Abstract/BaseAction.cs
 
 using System.Collections;
+using Core.Interface;
 using UnityEngine;
 
 /// <summary>
@@ -15,5 +16,5 @@ public abstract class BaseAction : GameData
     /// 즉시 완료되는 액션이라면, 로직 실행 후 'yield break;'를 호출하면 됩니다.
     /// </summary>
     /// <param name="executor">이 액션의 코루틴을 실행시켜주는 MonoBehaviour (예: ActionSequencer, DialogueManager)</param>
-    public abstract IEnumerator Execute(MonoBehaviour executor);
+    public abstract IEnumerator Execute(IGameActionContext context);
 }

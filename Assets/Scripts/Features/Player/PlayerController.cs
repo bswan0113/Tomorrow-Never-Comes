@@ -1,8 +1,9 @@
-// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Features\Player\PlayerController.cs
-
 using UnityEngine;
 using System.Linq;
-using System.Collections; // ▼▼▼ 코루틴을 위해 추가 ▼▼▼
+using System.Collections;
+using Core.Interface;
+using Core.Interface.Core.Interface;
+using VContainer;
 
 public class PlayerController : MonoBehaviour
 {
@@ -14,23 +15,44 @@ public class PlayerController : MonoBehaviour
     public KeyCode interactionKey = KeyCode.Space;
     [Tooltip("상호작용 후 다시 상호작용이 가능해지기까지의 짧은 지연 시간")]
     public float interactionBufferTime = 0.2f;
+    [Tooltip("플레이어 전방으로 인식할 각도 (0: 정면, 1: 90도까지, -1: 180도까지)")]
+    [Range(-1f, 1f)]
+    public float interactionDotProductThreshold = 0.5f; // 예를 들어 0.5면 약 60도 이내의 전방
 
     private Rigidbody2D rb;
     private Animator animator;
     private SpriteRenderer spriteRenderer;
     private Vector2 moveDirection;
+    private Vector2 _lastNonZeroMoveDirection = Vector2.down; // 기본값은 아래쪽 (캐릭터가 처음에 바라보는 방향)
 
     private bool canControl = true;
-    private bool isInteractionLocked = false; // ▼▼▼ 추가: 입력 버퍼를 위한 플래그
+    private bool isInteractionLocked = false;
+
+    private IDialogueService _dialogueService;
+    private IGameService _gameService;
+
+    [Inject]
+    public void Construct(IDialogueService dialogueService, IGameService gameService)
+    {
+        _dialogueService = dialogueService ?? throw new System.ArgumentNullException(nameof(dialogueService));
+        _gameService = gameService ?? throw new System.ArgumentNullException(nameof(gameService));
+        Debug.Log($"{gameObject.name}: 서비스 주입 완료");
+    }
 
     private void OnEnable()
     {
-        DialogueManager.OnDialogueStateChanged += HandleDialogueStateChanged;
+        if (_dialogueService != null)
+        {
+            _dialogueService.OnDialogueStateChanged += HandleDialogueStateChanged;
+        }
     }
 
     private void OnDisable()
     {
-        DialogueManager.OnDialogueStateChanged -= HandleDialogueStateChanged;
+        if (_dialogueService != null)
+        {
+            _dialogueService.OnDialogueStateChanged -= HandleDialogueStateChanged;
+        }
     }
 
     void Start()
@@ -50,26 +72,26 @@ public class PlayerController : MonoBehaviour
         }
         else
         {
-            // ▼▼▼ 핵심 추가 ▼▼▼: 대화가 "끝났을 때" 입력 잠금을 시작
             StartCoroutine(LockInteractionForBufferTime());
         }
     }
 
     void Update()
     {
-
-
         if (!canControl) return;
 
         float horizontalInput = Input.GetAxisRaw("Horizontal");
         float verticalInput = Input.GetAxisRaw("Vertical");
         moveDirection = new Vector2(horizontalInput, verticalInput).normalized;
 
-        // ▼▼▼ 핵심 수정 ▼▼▼: 입력 잠금 상태가 아닐 때만 상호작용을 시도
+        // 플레이어의 이동 방향이 있다면 최종 이동 방향을 업데이트 (정지 시에도 마지막 바라보는 방향 유지)
+        if (moveDirection != Vector2.zero)
+        {
+            _lastNonZeroMoveDirection = moveDirection;
+        }
+
         if (Input.GetKeyDown(interactionKey) && !isInteractionLocked)
         {
-            Debug.Log($"[PlayerController.Update] canControl: {canControl}, isInteractionLocked: {isInteractionLocked}, IsDialogueActive: {DialogueManager.Instance?.IsDialogueActive()}");
-            Debug.Log("<color=yellow>Interaction Key Pressed!</color>");
             TryInteract();
         }
 
@@ -90,11 +112,9 @@ public class PlayerController : MonoBehaviour
         animator.SetBool("isWalking", isMoving);
         if (isMoving)
         {
-            // 블렌드 트리에 방향 값 전달
             animator.SetFloat("moveX", Mathf.Abs(moveDirection.x));
             animator.SetFloat("moveY", moveDirection.y);
 
-            // 좌우 반전 로직
             if (moveDirection.x < 0)
             {
                 spriteRenderer.flipX = true;
@@ -108,15 +128,30 @@ public class PlayerController : MonoBehaviour
 
     private void TryInteract()
     {
-
-
-        if (DialogueManager.Instance != null && DialogueManager.Instance.IsDialogueActive())
+        if (_dialogueService != null && _dialogueService.IsDialogueActive())
         {
             return;
         }
 
         Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, interactionDistance);
-        var nearestInteractable = colliders.Select(c => c.GetComponent<IInteractable>()).Where(i => i != null).OfType<MonoBehaviour>().OrderBy(m => Vector2.Distance(transform.position, m.transform.position)).Select(m => m.GetComponent<IInteractable>()).FirstOrDefault();
+
+        // 상호작용 가능한 오브젝트들 중 플레이어의 전방에 있는 오브젝트만 필터링
+        var potentialInteractables = colliders.Select(c => c.GetComponent<IInteractable>())
+                                              .Where(i => i != null)
+                                              .OfType<MonoBehaviour>()
+                                              .Where(m => {
+                                                  // 플레이어 위치에서 오브젝트까지의 방향 벡터
+                                                  Vector2 directionToObject = (m.transform.position - transform.position).normalized;
+                                                  // 플레이어의 현재 바라보는 방향과 오브젝트 방향의 내적
+                                                  float dotProduct = Vector2.Dot(_lastNonZeroMoveDirection, directionToObject);
+                                                  // 내적 값이 임계값보다 크면 전방에 있다고 판단
+                                                  return dotProduct > interactionDotProductThreshold;
+                                              })
+                                              .Select(m => m.GetComponent<IInteractable>());
+
+        // 필터링된 오브젝트들 중 가장 가까운 오브젝트 선택
+        var nearestInteractable = potentialInteractables.OrderBy(m => Vector2.Distance(transform.position, (m as MonoBehaviour).transform.position))
+                                                       .FirstOrDefault();
 
         if (nearestInteractable != null)
         {
@@ -129,7 +164,6 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    // ▼▼▼ 추가: 입력 버퍼를 처리하는 코루틴
     private IEnumerator LockInteractionForBufferTime()
     {
         isInteractionLocked = true;
@@ -141,5 +175,22 @@ public class PlayerController : MonoBehaviour
     {
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, interactionDistance);
+
+        // Gizmos로 플레이어의 바라보는 방향 시각화
+        Gizmos.color = Color.blue;
+        Gizmos.DrawLine(transform.position, (Vector2)transform.position + _lastNonZeroMoveDirection * interactionDistance);
+
+        // Gizmos로 상호작용 범위 (Cone) 시각화 (대략적)
+        // Cosine 값을 이용하여 각도 계산 (interactionDotProductThreshold 가 cosine 값)
+        float angle = Mathf.Acos(interactionDotProductThreshold) * Mathf.Rad2Deg;
+        if (float.IsNaN(angle)) angle = 0f; // handle threshold 1 (angle 0)
+
+        Vector3 fwd = _lastNonZeroMoveDirection;
+        Vector3 left = Quaternion.Euler(0, 0, angle) * fwd;
+        Vector3 right = Quaternion.Euler(0, 0, -angle) * fwd;
+
+        Gizmos.color = Color.red;
+        Gizmos.DrawLine(transform.position, (Vector2)transform.position + (Vector2)left * interactionDistance);
+        Gizmos.DrawLine(transform.position, (Vector2)transform.position + (Vector2)right * interactionDistance);
     }
 }

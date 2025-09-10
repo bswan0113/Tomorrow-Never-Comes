@@ -1,15 +1,16 @@
-// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Features\UI\Common\DialogueUIHandler.cs
-
-using System.Collections; // ▼▼▼ 추가 ▼▼▼: 코루틴을 사용하기 위해 필요합니다.
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
+using Core.Interface;
+using Core.Interface.Core.Interface;
+using VContainer;
 
 /// <summary>
 /// 씬에 존재하는 대화 UI 오브젝트들을 직접 제어하고, DialogueManager에 자신을 등록하는 역할을 합니다.
 /// </summary>
-public class DialogueUIHandler : MonoBehaviour
+public class DialogueUIHandler : MonoBehaviour, IDialogueUIHandler
 {
     [Header("UI 기본 컴포넌트")]
     [SerializeField] private TextMeshProUGUI speakerNameText;
@@ -19,21 +20,32 @@ public class DialogueUIHandler : MonoBehaviour
     [SerializeField] private GameObject choiceBox;
     [SerializeField] private GameObject choiceButtonPrefab;
 
-    // ▼▼▼ 추가 ▼▼▼: 타이핑 효과 관련 변수들
     [Header("타이핑 효과")]
-    [SerializeField] private float typingSpeed = 0.05f; // 한 글자당 출력 시간
+    [SerializeField] private float typingSpeed = 0.05f;
 
-    private Coroutine m_TypingCoroutine; // 현재 실행 중인 타이핑 코루틴을 저장
-    private string m_FullText; // 스킵 시 표시할 전체 텍스트 원본
-    public bool IsTyping { get; private set; } = false; // 현재 타이핑 중인지 여부
+    private Coroutine m_TypingCoroutine;
+    private string m_FullText;
+    public bool IsTyping { get; private set; } = false;
+
+    // 필드 주입 방식 사용 (생성자 주입과 함께 사용하지 않음)
+    [Inject] private IDialogueService _dialogueService;
 
     void Awake()
     {
-        if (DialogueManager.Instance != null)
+        gameObject.SetActive(false);
+    }
+
+    // Start 메서드에서 주입 확인
+    void Start()
+    {
+        if (_dialogueService == null)
         {
-            DialogueManager.Instance.RegisterDialogueUI(this);
+            Debug.LogError("DialogueUIHandler: IDialogueService가 주입되지 않았습니다.");
         }
-        gameObject.SetActive(false); // 등록 후에는 즉시 비활성화
+        else
+        {
+            Debug.Log("[DialogueUIHandler] IDialogueService 주입 확인됨.");
+        }
     }
 
     /// <summary>
@@ -41,7 +53,6 @@ public class DialogueUIHandler : MonoBehaviour
     /// </summary>
     public void ShowLine(string speakerName, string dialogue)
     {
-        // ▼▼▼ 수정 ▼▼▼: 기존 로직을 코루틴 시작 로직으로 변경
         choiceBox.SetActive(false);
         dialogueText.gameObject.SetActive(true);
 
@@ -49,9 +60,8 @@ public class DialogueUIHandler : MonoBehaviour
         speakerNameText.gameObject.SetActive(!isMonologue);
         speakerNameText.text = speakerName;
 
-        m_FullText = dialogue; // 전체 텍스트 저장
+        m_FullText = dialogue;
 
-        // 만약 이전 코루틴이 실행 중이었다면 중지
         if (m_TypingCoroutine != null)
         {
             StopCoroutine(m_TypingCoroutine);
@@ -59,11 +69,10 @@ public class DialogueUIHandler : MonoBehaviour
         m_TypingCoroutine = StartCoroutine(TypeDialogueCoroutine(dialogue));
     }
 
-    // ▼▼▼ 추가 ▼▼▼: 타이핑 효과를 처리하는 코루틴
     private IEnumerator TypeDialogueCoroutine(string textToShow)
     {
         IsTyping = true;
-        dialogueText.text = ""; // 텍스트 초기화
+        dialogueText.text = "";
 
         foreach (char letter in textToShow.ToCharArray())
         {
@@ -75,7 +84,9 @@ public class DialogueUIHandler : MonoBehaviour
         m_TypingCoroutine = null;
     }
 
-    // ▼▼▼ 추가 ▼▼▼: 타이핑 효과를 즉시 완료시키는 스킵 메서드
+    /// <summary>
+    /// 타이핑 효과를 즉시 완료시키는 스킵 메서드
+    /// </summary>
     public void SkipTypingEffect()
     {
         if (m_TypingCoroutine != null)
@@ -83,23 +94,27 @@ public class DialogueUIHandler : MonoBehaviour
             StopCoroutine(m_TypingCoroutine);
             m_TypingCoroutine = null;
         }
-        dialogueText.text = m_FullText; // 전체 텍스트 즉시 표시
+        dialogueText.text = m_FullText;
         IsTyping = false;
     }
-
 
     /// <summary>
     /// 선택지 목록을 받아 화면에 버튼들을 생성합니다.
     /// </summary>
     public void ShowChoices(List<ChoiceData> choices)
     {
-        // ▼▼▼ 추가 ▼▼▼: 선택지가 표시될 때는 타이핑을 확실히 멈춤
+        if (_dialogueService == null)
+        {
+            Debug.LogError("DialogueUIHandler: IDialogueService가 주입되지 않았습니다.");
+            return;
+        }
+
         if (IsTyping)
         {
             SkipTypingEffect();
         }
 
-        dialogueText.gameObject.SetActive(false); // 대사 텍스트는 잠시 가림
+        dialogueText.gameObject.SetActive(false);
         choiceBox.SetActive(true);
 
         foreach (Transform child in choiceBox.transform)
@@ -113,7 +128,7 @@ public class DialogueUIHandler : MonoBehaviour
             buttonGO.GetComponentInChildren<TextMeshProUGUI>().text = choice.choiceText;
             buttonGO.GetComponent<Button>().onClick.AddListener(() =>
             {
-                DialogueManager.Instance.ProcessChoice(choice);
+                _dialogueService.ProcessChoice(choice);
             });
         }
     }
