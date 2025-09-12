@@ -45,18 +45,12 @@ public class GenericCsvImporter : ScriptedImporter
     public string groupedListItemTypeAssemblyQualifiedName;
     #endregion
 
-    private Dictionary<string, GameData> allGameDataCache;
-
     /// <summary>
     /// Unity가 이 에셋을 임포트할 때 호출하는 메인 메소드입니다.
     /// </summary>
-    // GenericCsvImporter.cs 파일의 OnImportAsset 메소드를 이걸로 교체하세요.
-
     public override void OnImportAsset(AssetImportContext ctx)
     {
         CoreLogger.Log($"<color=lime>--- Starting import for {Path.GetFileName(ctx.assetPath)} ---</color>");
-
-        RefreshCache();
 
         if (string.IsNullOrEmpty(targetTypeAssemblyQualifiedName))
         {
@@ -90,10 +84,12 @@ public class GenericCsvImporter : ScriptedImporter
             case ImportStrategy.Simple:
                 CoreLogger.Log("Using Simple import strategy.");
                 ImportSimpleData(ctx, parsedData, container, soType);
+                CoreLogger.Log($"<color=cyan>[{Path.GetFileName(ctx.assetPath)}] Simple strategy finished. Created {container.importedObjects.Count} ScriptableObjects.</color>");
                 break;
             case ImportStrategy.GroupedById:
                 CoreLogger.Log("Using GroupedById import strategy.");
                 ImportGroupedData(ctx, parsedData, container, soType);
+                CoreLogger.Log($"<color=cyan>[{Path.GetFileName(ctx.assetPath)}] GroupedById strategy finished. Created {container.importedObjects.Count} ScriptableObjects.</color>");
                 break;
         }
 
@@ -118,8 +114,9 @@ public class GenericCsvImporter : ScriptedImporter
             var soInstance = (GameData)ScriptableObject.CreateInstance(soType);
             soInstance.name = assetId;
             soInstance.id = assetId;
+            CoreLogger.Log($"  Created simple SO: <color=yellow>{assetId}</color> of type {soType.Name}");
 
-            PopulateFields(ctx, soInstance, soType, row);
+            PopulateFields(ctx, soInstance, soType, row, container);
 
             ctx.AddObjectToAsset(assetId, soInstance);
             container.importedObjects.Add(soInstance);
@@ -152,10 +149,13 @@ public class GenericCsvImporter : ScriptedImporter
         var groupedData = new Dictionary<string, List<Dictionary<string, string>>>();
         string lastIdForGrouping = null;
         foreach (var row in parsedData)
-        {
+        {   // 첫 열이 비어있는 경우, 이전 ID를 사용하여 그룹화합니다.
             string id = row.ContainsKey("ID") && !string.IsNullOrEmpty(row["ID"]) ? row["ID"] : lastIdForGrouping;
-            if (string.IsNullOrEmpty(id)) continue;
-
+            if (string.IsNullOrEmpty(id))
+            {
+                CoreLogger.LogWarning($"Skipping row due to missing ID and no previous ID for grouping: {string.Join(", ", row.Values)}");
+                continue;
+            }
             if (!groupedData.ContainsKey(id))
             {
                 groupedData[id] = new List<Dictionary<string, string>>();
@@ -164,12 +164,14 @@ public class GenericCsvImporter : ScriptedImporter
             lastIdForGrouping = id;
         }
 
+        CoreLogger.Log($"  Grouped {parsedData.Count} rows into {groupedData.Count} distinct IDs.");
         foreach (var group in groupedData)
         {
             string assetId = group.Key;
             var groupRows = group.Value;
 
             var mainSoInstance = (GameData)ScriptableObject.CreateInstance(soType);
+            CoreLogger.Log($"  Created grouped SO: <color=yellow>{assetId}</color> of type {soType.Name} with {groupRows.Count} sub-items.");
             mainSoInstance.name = assetId;
             mainSoInstance.id = assetId;
 
@@ -183,7 +185,7 @@ public class GenericCsvImporter : ScriptedImporter
                 foreach (var row in groupRows)
                 {
                     var listItem = Activator.CreateInstance(listItemType);
-                    PopulateFields(ctx, listItem, listItemType, row);
+                    PopulateFields(ctx, listItem, listItemType, row, container); // 리스트 아이템 내부 필드 채우기
                     list.Add(listItem);
                 }
             }
@@ -201,26 +203,32 @@ public class GenericCsvImporter : ScriptedImporter
                     {
                         string value = rowWithValue[field.Name];
                         Type fieldType = field.FieldType;
-                        bool isGameDataList = typeof(IList).IsAssignableFrom(fieldType) && typeof(GameData).IsAssignableFrom(fieldType.GetGenericArguments()[0]);
-                        if (isGameDataList)
+
+                        // GameData 타입 (단일 또는 리스트)에 대한 참조는 PendingReference로 넘깁니다.
+                        // GameData 단일 참조인 경우
+                        if (typeof(GameData).IsAssignableFrom(fieldType))
+                        {
+                            if (!string.IsNullOrEmpty(value)) // 단일 GameData 참조
+                            {
+                                container.pendingReferences.Add(new PendingReference(mainSoInstance, field.Name, new List<string> { value.Trim() }, isList: false));
+                                CoreLogger.Log($"    Pending single GameData reference for <color=yellow>{mainSoInstance.name}</color>.<color=orange>{field.Name}</color> with ID: {value.Trim()}");
+                            }
+                            field.SetValue(mainSoInstance, null); // 초기에는 null로 설정
+                        }
+                        else if (typeof(IList).IsAssignableFrom(fieldType) && typeof(GameData).IsAssignableFrom(fieldType.GetGenericArguments()[0])) // GameData 리스트 참조인 경우
                         {
                             var idsToLink = value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
                             if (idsToLink.Any())
                             {
-                                container.pendingReferences.Add(new PendingReference(mainSoInstance, field.Name, idsToLink));
+                                container.pendingReferences.Add(new PendingReference(mainSoInstance, field.Name, idsToLink, isList: true)); // 리스트 GameData 참조
+                                CoreLogger.Log($"    Pending list GameData reference for <color=yellow>{mainSoInstance.name}</color>.<color=orange>{field.Name}</color> with IDs: {string.Join(", ", idsToLink)}");
                             }
+                            field.SetValue(mainSoInstance, Activator.CreateInstance(fieldType)); // 초기에는 빈 리스트로 설정
                         }
                         else
                         {
-                            try
-                            {
-                                var parsedValue = ParseValue(ctx, value, field.FieldType);
-                                field.SetValue(mainSoInstance, parsedValue);
-                            }
-                            catch (Exception e)
-                            {
-                                ctx.LogImportWarning($"[{assetId}] Parse failed for main field '{field.Name}': {e.Message}", mainSoInstance);
-                            }
+                            // 그 외의 필드는 ParseValue를 통해 즉시 채웁니다.
+                            SetFieldParsedValue(ctx, mainSoInstance, field, value);
                         }
                     }
                 }
@@ -236,29 +244,79 @@ public class GenericCsvImporter : ScriptedImporter
     /// 리플렉션을 사용해 객체의 필드를 채우는 헬퍼 메소드
     /// [수정됨] 복잡한 로직을 제거하고, 이름이 일치하는 필드를 채우는 단순한 역할만 수행합니다.
     /// </summary>
-    private void PopulateFields(AssetImportContext ctx, object targetObject, Type targetType, Dictionary<string, string> rowData)
+    private void PopulateFields(AssetImportContext ctx, object targetObject, Type targetType, Dictionary<string, string> rowData, DataImportContainer container)
     {
         foreach (var header in rowData.Keys)
         {
-            // CSV 셀이 비어있으면 이 필드는 건너뜁니다.
+            // CSV 셀이 비어있으면 이 필드는 건너뜠거나, GameData 참조인 경우 null로 설정
             if (string.IsNullOrEmpty(rowData[header]))
             {
+                FieldInfo fieldForEmpty = targetType.GetField(header, BindingFlags.Public | BindingFlags.Instance);
+                if (fieldForEmpty != null && typeof(GameData).IsAssignableFrom(fieldForEmpty.FieldType))
+                {
+                    fieldForEmpty.SetValue(targetObject, null);
+                }
                 continue;
             }
 
             FieldInfo field = targetType.GetField(header, BindingFlags.Public | BindingFlags.Instance);
             if (field != null)
             {
-                try
+                Type fieldType = field.FieldType;
+
+                // GameData 타입의 필드는 즉시 파싱하지 않고 PendingReference에 추가
+                if (typeof(GameData).IsAssignableFrom(fieldType))
                 {
-                    var parsedValue = ParseValue(ctx, rowData[header], field.FieldType);
-                    field.SetValue(targetObject, parsedValue);
+                    string id = rowData[header].Trim();
+                    if (!string.IsNullOrEmpty(id) && targetObject is ScriptableObject so)
+                    {
+                        container.pendingReferences.Add(new PendingReference(so, field.Name, new List<string> { id }, isList: false));
+                        CoreLogger.Log($"    Pending single GameData reference for <color=yellow>{so.name}</color>.<color=orange>{field.Name}</color> with ID: {id}");
+                    }
+                    // GameData 필드는 초기에는 null로 설정, Postprocessor에서 채워집니다.
+                    field.SetValue(targetObject, null);
                 }
-                catch (Exception e)
+                // GameData 리스트 타입은 PopulateFields에서는 처리하지 않고, GroupedById 전략에서 별도로 처리하거나
+                // Simple 전략의 경우 리스트 필드에 대한 CSV 값이 있다면 Postprocessor에서 처리해야 합니다.
+                // 여기서는 일반 리스트/배열처럼 값을 파싱하여 채우거나, GameData 리스트인 경우 빈 리스트를 초기화하고 Postprocessor에서 처리하도록 합니다.
+                else if (typeof(IList).IsAssignableFrom(fieldType) && typeof(GameData).IsAssignableFrom(fieldType.GetGenericArguments()[0]))
                 {
-                    ctx.LogImportWarning($"[{targetObject.ToString()}] Parse failed for field '{header}': {e.Message}", (UnityEngine.Object)targetObject);
+                     // Simple 전략의 GameData 리스트 필드 (이 경우 CSV 셀에 콤마로 구분된 ID 목록이 있을 수 있음)
+                     // 이 필드도 PendingReference로 처리하여 Postprocessor에서 해결하도록 합니다.
+                     string value = rowData[header];
+                     if (!string.IsNullOrEmpty(value) && targetObject is ScriptableObject so)
+                     {
+                         var idsToLink = value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+                         if (idsToLink.Any())
+                         {
+                             container.pendingReferences.Add(new PendingReference(so, field.Name, idsToLink, isList: true));
+                             CoreLogger.Log($"    Pending list GameData reference for <color=yellow>{so.name}</color>.<color=orange>{field.Name}</color> with IDs: {string.Join(", ", idsToLink)}");
+                         }
+                     }
+                     field.SetValue(targetObject, Activator.CreateInstance(fieldType)); // 초기에는 빈 리스트로 설정
+                }
+                else
+                {
+                    // 그 외의 필드는 ParseValue를 통해 즉시 채웁니다.
+                    SetFieldParsedValue(ctx, targetObject, field, rowData[header]);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// 주어진 필드에 파싱된 값을 설정하는 헬퍼 메소드 (예외 처리 포함)
+    /// </summary>
+    private void SetFieldParsedValue(AssetImportContext ctx, object targetObject, FieldInfo field, string valueString)
+    {
+        try
+        {
+            var parsedValue = ParseValue(ctx, valueString, field.FieldType);
+            field.SetValue(targetObject, parsedValue);
+        }
+        catch (Exception e)
+        {
+            ctx.LogImportWarning($"[{targetObject.GetType().Name}.{field.Name}] Parse failed for value '{valueString}' to type '{field.FieldType.Name}': {e.Message}", (UnityEngine.Object)targetObject);
         }
     }
 
@@ -266,25 +324,6 @@ public class GenericCsvImporter : ScriptedImporter
     {
         if (t.IsValueType) return Activator.CreateInstance(t);
         return null;
-    }
-
-    /// <summary>
-    /// 프로젝트 내의 모든 GameData 에셋을 스캔하여 ID 기반으로 캐싱합니다.
-    /// </summary>
-    public void RefreshCache()
-    {
-        allGameDataCache = new Dictionary<string, GameData>();
-        string[] guids = AssetDatabase.FindAssets("t:GameData");
-
-        foreach (string guid in guids)
-        {
-            string path = AssetDatabase.GUIDToAssetPath(guid);
-            GameData gameData = AssetDatabase.LoadAssetAtPath<GameData>(path);
-            if (gameData != null && !string.IsNullOrEmpty(gameData.id) && !allGameDataCache.ContainsKey(gameData.id))
-            {
-                allGameDataCache.Add(gameData.id, gameData);
-            }
-        }
     }
 
     /// <summary>
@@ -300,18 +339,24 @@ public class GenericCsvImporter : ScriptedImporter
 
         try
         {
+            // Enum 타입 파싱
             if (type.IsEnum)
                 return Enum.Parse(type, value, true);
 
+            // GameData 타입은 Postprocessor에서 처리하므로, 여기서는 null을 반환합니다.
+            // GameData 참조는 이미 PopulateFields에서 PendingReference로 처리되었으므로,
+            // 이 ParseValue는 GameData 필드에 대해 호출될 일이 없어야 합니다.
             if (typeof(GameData).IsAssignableFrom(type))
             {
+                // CoreLogger.LogWarning($"ParseValue called for GameData type '{type.Name}'. This should not happen if references are handled by PendingReference.");
                 return null;
             }
 
             if (typeof(UnityEngine.Object).IsAssignableFrom(type))
             {
                 var asset = AssetDatabase.LoadAssetAtPath(value, type);
-                if (asset != null) { ctx.DependsOnSourceAsset(value); return asset; }
+                if (asset != null) { ctx.DependsOnSourceAsset(value); CoreLogger.Log($"    Loaded UnityEngine.Object asset: {value} as {type.Name}"); return asset; }
+                CoreLogger.LogWarning($"    Could not load UnityEngine.Object asset at path '{value}' for type '{type.Name}'.");
                 return null;
             }
 
@@ -324,12 +369,14 @@ public class GenericCsvImporter : ScriptedImporter
                 Type itemType = type.IsArray ? type.GetElementType() : type.GetGenericArguments()[0];
 
                 // 리스트의 아이템 타입이 GameData를 상속하는 경우
+                // 이 ParseValue에서는 GameData 리스트를 직접 채우지 않습니다.
+                // 이는 PopulateFields에서 PendingReference로 처리되었어야 합니다.
                 if (typeof(GameData).IsAssignableFrom(itemType))
                 {
-                    // 여기서는 빈 리스트만 생성하고, 실제 채우는 작업은 PostProcessor에게 넘깁니다.
+                    // CoreLogger.LogWarning($"ParseValue called for GameData list type '{type.Name}'. This should not happen if references are handled by PendingReference.");
                     IList list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(itemType));
                     if (type.IsArray) { Array array = Array.CreateInstance(itemType, list.Count); list.CopyTo(array, 0); return array; }
-                    return list;
+                    return list; // 빈 리스트 반환
                 }
 
                 IList generalList = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(itemType));
@@ -363,11 +410,22 @@ public class GenericCsvImporter : ScriptedImporter
                 return dictionary;
             }
 
+            // 기본 타입 (int, float, bool, string 등) 파싱
             return Convert.ChangeType(value, type, CultureInfo.InvariantCulture);
+        }
+        catch (FormatException e)
+        {
+            ctx.LogImportWarning($"Failed to parse value '{value}' to type '{type.Name}' due to format error: {e.Message}", ctx.mainObject);
+            return type.IsValueType ? Activator.CreateInstance(type) : null;
+        }
+        catch (InvalidCastException e)
+        {
+            ctx.LogImportWarning($"Failed to cast value '{value}' to type '{type.Name}': {e.Message}", ctx.mainObject);
+            return type.IsValueType ? Activator.CreateInstance(type) : null;
         }
         catch (Exception e)
         {
-            ctx.LogImportWarning($"Exception while parsing value '{value}' for type '{type.Name}'. Reason: {e.Message}");
+            ctx.LogImportWarning($"Exception while parsing value '{value}' for type '{type.Name}'. Reason: {e.Message}", ctx.mainObject);
             return type.IsValueType ? Activator.CreateInstance(type) : null;
         }
     }
