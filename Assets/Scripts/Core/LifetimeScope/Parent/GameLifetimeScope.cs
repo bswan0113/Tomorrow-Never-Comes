@@ -4,6 +4,7 @@ using Core.Data.Impl;
 using Core.Data.Interface;
 using Core.Interface;
 using Core.Interface.Core.Interface;
+using Core.LifetimeScope.Parent.Core.LifetimeScope.Parent;
 using Core.Resource;
 using Features.Player;
 using Features.UI.Common;
@@ -23,13 +24,15 @@ namespace Core.LifetimeScope.Parent
 
     [Header("UI Components")]
     [SerializeField] private DialogueManager dialogueManager;
-    protected override void Awake()
-    {
-        DontDestroyOnLoad(this.gameObject);
-        base.Awake();
-    }
+
     protected override void Configure(IContainerBuilder builder)
     {
+        DontDestroyOnLoad(gameObject);
+        builder.RegisterComponent(gameResourceManager).As<IGameResourceService>().AsSelf(); // AsSelf 추가
+
+        // GameInitializer를 IAsyncStartable로 등록하여 비동기 초기화를 관리
+        // builder.Register<GameInitializer>(Lifetime.Singleton).AsImplementedInterfaces();
+
 
         builder.Register<SchemaManager>(Lifetime.Singleton);
         // 1. DatabaseAccess 등록
@@ -49,10 +52,10 @@ namespace Core.LifetimeScope.Parent
             .WithParameter<IDatabaseAccess>(container => container.Resolve<IDatabaseAccess>());
 
         // 3. GameResourceManager 등록
-        builder.RegisterComponent(gameResourceManager).As<IGameResourceService>();
-        builder.RegisterBuildCallback(container => {
-            gameResourceManager.Initialize();
-        });
+        // builder.RegisterComponent(gameResourceManager).As<IGameResourceService>();
+        // builder.RegisterBuildCallback(container => {
+        //     gameResourceManager.InitializeAsync();
+        // });
 
         // 4. SceneTransitionManager 등록
         builder.RegisterComponent(sceneTransitionManager).As<ISceneTransitionService>();
@@ -80,7 +83,7 @@ namespace Core.LifetimeScope.Parent
 
         builder.RegisterEntryPoint<DatabaseCleanup>();
         // 8. EntryPoint 등록 (게임 시작)
-        builder.RegisterEntryPoint<GameStarter>();
+        builder.RegisterEntryPoint<GameInitializer>();
     }
 }
 }

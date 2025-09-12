@@ -1,6 +1,7 @@
 // C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Core\Interface\ISceneTransitionService.cs
 
-using System; // Action 델리게이트를 사용하기 위해 추가
+using System;
+using System.Threading;
 
 namespace Core.Interface
 {
@@ -16,6 +17,11 @@ namespace Core.Interface
         /// (true: 전환 시작, false: 전환 완료)
         /// </summary>
         event Action<bool> OnTransitionStateChanged;
+
+        /// <summary>
+        /// 씬 로딩 진행률이 업데이트될 때 발생합니다 (0.0f ~ 1.0f).
+        /// </summary>
+        event Action<float> OnLoadingProgress;
 
         /// <summary>
         /// 지정된 씬으로 페이드 효과와 함께 전환을 시작합니다.

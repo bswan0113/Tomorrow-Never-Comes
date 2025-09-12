@@ -1,10 +1,13 @@
 // C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Core\SceneTransitionManager.cs
 
-using System; // Action 델리게이트를 사용하기 위해 추가
+using System;
 using System.Collections;
 using Core.Interface;
 using Core.Logging;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
+using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -15,29 +18,44 @@ namespace Core
         [SerializeField] private Image fadeImage;
         [SerializeField] private float fadeDuration = 1f;
 
-        private bool _isTransitioning = false; // 씬 전환 중인지 여부를 나타내는 플래그
-        public bool IsTransitioning => _isTransitioning; // ISceneTransitionService 구현
-        public event Action<bool> OnTransitionStateChanged; // ISceneTransitionService 구현
+        private bool _isTransitioning = false;
+        public bool IsTransitioning => _isTransitioning;
 
-        // 게임 시작 시 Fade In
+        public event Action<bool> OnTransitionStateChanged;
+        public event Action<float> OnLoadingProgress;
+
         private void Start()
+        {
+            InitializeFadeImage();
+            if (fadeImage != null)
+            {
+                fadeImage.color = new Color(0, 0, 0, 1);
+                StartCoroutine(Fade(0f));
+            }
+        }
+
+        private void OnDestroy()
+        {
+            // 이 매니저는 DontDestroyOnLoad 될 가능성이 높으므로, OnDestroy는 게임 종료 시점에 가깝습니다.
+            // 만약 동적으로 생성/파괴된다면, 이벤트 구독자를 여기서 초기화하는 것을 고려할 수 있습니다.
+            // OnTransitionStateChanged = null;
+            // OnLoadingProgress = null;
+        }
+
+        private void InitializeFadeImage()
         {
             if (fadeImage == null)
             {
-                CoreLogger.LogWarning("SceneTransitionManager: fadeImage가 할당되지 않았습니다. 페이드 효과가 작동하지 않습니다.");
-                // 에디터에서 실수로 할당하지 않은 경우를 대비하여 기본 색상 설정
-                if (fadeImage == null && TryGetComponent(out Image img))
+                CoreLogger.LogWarning("SceneTransitionManager: fadeImage가 할당되지 않았습니다. GameObject에서 Image 컴포넌트를 찾아봅니다.", this);
+                if (TryGetComponent(out Image img))
                 {
                     fadeImage = img;
-                    fadeImage.color = new Color(0, 0, 0, 1); // 시작 시 검은색으로 가정
+                    CoreLogger.LogInfo("SceneTransitionManager: Image 컴포넌트를 찾아 fadeImage로 할당했습니다.", this);
                 }
-            }
-
-            if (fadeImage != null)
-            {
-                // 초기 상태를 검은색으로 설정하고, 페이드 인 시작
-                fadeImage.color = new Color(0, 0, 0, 1);
-                StartCoroutine(Fade(0f)); // 투명하게 만들기
+                else
+                {
+                    CoreLogger.LogError("SceneTransitionManager: GameObject에 Image 컴포넌트가 없으며, fadeImage가 할당되지 않았습니다. 페이드 효과가 작동하지 않습니다.", this);
+                }
             }
         }
 
@@ -45,15 +63,7 @@ namespace Core
         {
             if (_isTransitioning)
             {
-                CoreLogger.LogWarning($"Scene transition already in progress. Ignoring request to load '{sceneName}'.");
-                return;
-            }
-
-            // 씬 유효성 검사
-            if (!Application.CanStreamedLevelBeLoaded(sceneName))
-            {
-                CoreLogger.LogError($"Scene '{sceneName}' cannot be loaded because it is not in the build settings or does not exist.");
-                // 유효하지 않은 씬 요청에 대한 복구 경로 (여기서는 단순히 경고 후 중단)
+                CoreLogger.LogWarning($"Scene transition already in progress. Ignoring request to load '{sceneName}'.", this);
                 return;
             }
 
@@ -63,45 +73,65 @@ namespace Core
         private IEnumerator FadeAndLoadCoroutine(string sceneName)
         {
             _isTransitioning = true;
-            OnTransitionStateChanged?.Invoke(true); // 씬 전환 시작 이벤트 발생
+            OnTransitionStateChanged?.Invoke(true);
+            CoreLogger.LogInfo($"[SceneTransitionManager] Scene transition started for '{sceneName}'.", this);
 
-            // Fade Out
+            // 전환 실패 여부를 추적하는 플래그
+            bool transitionFailed = false;
+
+            // --- Fade Out ---
+            // !!! 경고: 만약 StartCoroutine(Fade(1f)) 호출에서 동기적 예외가 발생하면,
+            // 이 코루틴은 여기서 즉시 중단되고 아래의 클린업 코드는 실행되지 않습니다.
+            // _isTransitioning 상태가 'true'로 고정될 수 있습니다.
             yield return StartCoroutine(Fade(1f));
+            CoreLogger.LogDebug("[SceneTransitionManager] Fade Out complete.", this);
 
-            // Scene Load (비동기 로드로 변경)
-            AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneName);
+            // --- Addressables를 이용한 Scene Load ---
+            AsyncOperationHandle<SceneInstance> loadSceneHandle = Addressables.LoadSceneAsync(sceneName, LoadSceneMode.Single, false);
 
-            // 로딩이 완료될 때까지 대기
-            while (!asyncLoad.isDone)
+            while (!loadSceneHandle.IsDone)
             {
-                // 로딩 진행률 표시 등의 추가 로직을 여기에 넣을 수 있습니다.
-                yield return null;
+                OnLoadingProgress?.Invoke(loadSceneHandle.PercentComplete);
+                yield return null; // 이 지점에서 발생할 수 있는 동기적 예외(예: OnLoadingProgress 콜백 내부)에도 대비해야 합니다.
             }
 
-            // 로드 실패 처리 (예외 발생 시 asyncLoad.isDone은 true가 되므로, 추가적인 오류 검사가 필요할 수 있지만,
-            // CanStreamedLevelBeLoaded로 대부분의 경우를 막았으므로 여기서는 단순화)
-            // 만약 로드 중 치명적인 오류가 발생했다면 Unity 자체에서 에러를 발생시키므로,
-            // 여기서는 asyncLoad.isDone이 true가 되지 않거나 예상치 못한 동작을 할 경우를 대비하는 코드가 필요할 수 있습니다.
-            // 하지만 LoadSceneAsync는 보통 성공적으로 isDone을 반환합니다.
-
-            // Fade In (새 씬이 로드된 후)
-            if (fadeImage != null)
+            if (loadSceneHandle.Status == AsyncOperationStatus.Failed)
             {
-                // 새 씬에서 Fade In이 시작되도록 설정 (새 씬 로드 후 이 Manager가 유지된다는 가정)
-                // 만약 이 Manager가 새 씬에서 파괴되고 새로 생성된다면, 새 씬의 Manager가 Fade In을 담당해야 합니다.
-                // 여기서는 DontDestroyOnLoad로 Manager가 유지된다고 가정합니다.
+                CoreLogger.LogError($"[SceneTransitionManager] Failed to load scene '{sceneName}' using Addressables. Exception: {loadSceneHandle.OperationException?.Message}", this);
+                transitionFailed = true;
+                // 로드 실패 시, 더 이상의 진행 없이 코루틴을 종료하려면 여기에 'yield break;'를 추가할 수 있습니다.
+                // 'yield break;'를 사용하더라도 아래의 클린업 코드는 정상적으로 실행됩니다.
+                // yield break;
+            }
+            else
+            {
+                CoreLogger.LogInfo($"[SceneTransitionManager] Scene '{sceneName}' loaded successfully.", this);
+            }
+
+            // --- Fade In (로드 성공 시에만) ---
+            if (!transitionFailed && fadeImage != null)
+            {
+                // !!! 경고: StartCoroutine(Fade(0f)) 호출에서 동기적 예외가 발생하면,
+                // 이 코루틴은 여기서 즉시 중단되고 아래의 클린업 코드는 실행되지 않습니다.
+                // _isTransitioning 상태가 'true'로 고정될 수 있습니다.
                 yield return StartCoroutine(Fade(0f));
+                CoreLogger.LogDebug("[SceneTransitionManager] Fade In complete.", this);
             }
 
+            // --- 클린업 (코루틴이 끝까지 실행되거나 'yield break'로 정상 종료될 경우 항상 실행됩니다.) ---
+            // 단, 위에서 언급한 것처럼 중간에 *처리되지 않은 동기적 예외*로 인해 코루틴이 강제 종료되면 이 코드는 실행되지 않습니다.
             _isTransitioning = false;
-            OnTransitionStateChanged?.Invoke(false); // 씬 전환 완료 이벤트 발생
+            OnTransitionStateChanged?.Invoke(false);
+            CoreLogger.LogInfo($"[SceneTransitionManager] Scene transition for '{sceneName}' finished (status: {(transitionFailed ? "Failed" : "Completed")}).", this);
+
+            // Addressables 핸들 해제에 대한 원래 주석은 그대로 유지합니다.
         }
 
         private IEnumerator Fade(float targetAlpha)
         {
             if (fadeImage == null)
             {
-                CoreLogger.LogError("FadeImage is null. Cannot perform fade.");
+                CoreLogger.LogError("FadeImage is null. Cannot perform fade.", this);
                 yield break;
             }
 
@@ -110,7 +140,7 @@ namespace Core
 
             while (time < fadeDuration)
             {
-                time += Time.unscaledDeltaTime; // 씬 로드 중 시간 스케일이 0이 될 수 있으므로 unscaledDeltaTime 사용
+                time += Time.unscaledDeltaTime;
                 float alpha = Mathf.Lerp(startAlpha, targetAlpha, time / fadeDuration);
                 fadeImage.color = new Color(0, 0, 0, alpha);
                 yield return null;
