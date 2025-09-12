@@ -4,13 +4,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading; // CancellationTokenSource를 사용하기 위해 추가
 using Core.Interface;
 using Core.Interface.Core.Interface;
+using Core.Logging;
 using UnityEngine;
-// using Manager; // GameResourceManager는 이제 인터페이스를 통해 접근하므로 필요 없음.
-
-// 우리가 정의한 인터페이스들을 사용하기 위해 필요
-
 
 namespace Features.UI.Common
 {
@@ -18,17 +16,33 @@ namespace Features.UI.Common
     /// 게임의 전체 대화 흐름을 관리하는 매니저입니다.
     /// 데이터(SO)와 UI(Handler) 사이의 다리 역할을 합니다.
     /// </summary>
-    public class DialogueManager : MonoBehaviour, IDialogueService, IGameActionContext  // 인터페이스 구현 추가
+    public class DialogueManager : MonoBehaviour, IDialogueService, IGameActionContext
     {
-        // public static DialogueManager Instance { get; private set; } // <- 제거
-
         // 의존성 주입을 위한 필드
         private IGameResourceService _gameResourceService;
-        private IDialogueUIHandler _uiHandler; // DialogueUIHandler 대신 인터페이스 사용
+        private IDialogueUIHandler _uiHandler;
         private IGameService _gameService;
-        public IGameService gameService => _gameService; // 주입받은 _gameService를 반환
-        public IDialogueService dialogueService => this; // DialogueManager 자신이 IDialogueService이므로 자신을 반환
+
+        // IGameActionContext 인터페이스 구현
+        public IGameService gameService => _gameService;
+        public IDialogueService dialogueService => this;
         public MonoBehaviour coroutineRunner => this;
+
+        // 선택지 액션 실행을 위한 CancellationTokenSource 및 플래그
+        private CancellationTokenSource _choiceActionCts;
+        private bool _isExecutingChoiceActions = false;
+
+        // IGameActionContext 인터페이스 구현: 취소 토큰
+        public CancellationToken CancellationToken => _choiceActionCts?.Token ?? CancellationToken.None;
+
+        // IGameActionContext 인터페이스 구현: 오류 보고
+        public void ReportError(Exception ex)
+        {
+            CoreLogger.LogError($"[DialogueManager] 선택지 액션 실행 중 오류 발생: {ex.Message}\n{ex.StackTrace}", this);
+            // 대화 시스템의 오류는 치명적일 수 있으므로, 대화를 즉시 종료하고 복구 시도
+            StopChoiceActions(true); // 오류 발생 시 액션 강제 중단
+            EndDialogue(); // 오류 발생 시 대화 종료
+        }
 
         private Queue<DialogueLine> dialogueQueue;
         private DialogueData currentDialogueData;
@@ -38,31 +52,28 @@ namespace Features.UI.Common
         private bool canProcessInput = true;
         private const string noneRegisteredIdentifier = "0";
 
-        // static 이벤트 대신 인스턴스 이벤트로 변경
-        public event Action OnDialogueEnded; // IDialogueService에 추가
-        public event Action<bool> OnDialogueStateChanged; // IDialogueService에 추가
+        // 인스턴스 이벤트로 변경
+        public event Action OnDialogueEnded;
+        public event Action<bool> OnDialogueStateChanged;
 
-        public void Initialize(IGameResourceService gameResourceService,  IGameService gameService)
+        public void Initialize(IGameResourceService gameResourceService, IGameService gameService)
         {
             _gameResourceService = gameResourceService ?? throw new ArgumentNullException(nameof(gameResourceService));
-            _gameService = gameService ?? throw new ArgumentNullException(nameof(gameService)); // IGameService 주입
+            _gameService = gameService ?? throw new ArgumentNullException(nameof(gameService));
 
-            Debug.Log("[DialogueManager] 초기화 완료.");
+            CoreLogger.Log("[DialogueManager] 초기화 완료.");
         }
 
         void Awake()
         {
-
             dialogueQueue = new Queue<DialogueLine>();
-            Debug.Log("[DialogueManager] Awake - Singleton 로직 제거됨.");
+            CoreLogger.Log("[DialogueManager] Awake - Singleton 로직 제거됨.");
         }
 
-        // 컴포지션 루트에서 호출될 초기화 메서드
-        public void Initialize(IGameResourceService gameResourceService)
+        // GameObject 파괴 시 리소스 클린업
+        private void OnDestroy()
         {
-            _gameResourceService = gameResourceService ?? throw new ArgumentNullException(nameof(gameResourceService));
-
-            Debug.Log("[DialogueManager] 초기화 완료.");
+            StopChoiceActions(); // 선택지 액션 실행 중이었다면 중단
         }
 
         void Update()
@@ -71,9 +82,9 @@ namespace Features.UI.Common
             {
                 canProcessInput = false; // 중복 입력 방지
 
-                if (_uiHandler.IsTyping) // 주입받은 _uiHandler 사용
+                if (_uiHandler != null && _uiHandler.IsTyping)
                 {
-                    _uiHandler.SkipTypingEffect(); // 주입받은 _uiHandler 사용
+                    _uiHandler.SkipTypingEffect();
                     canProcessInput = true;
                 }
                 else
@@ -83,27 +94,21 @@ namespace Features.UI.Common
             }
         }
 
-        // IDialogueService 인터페이스 메서드 구현
         public void RegisterDialogueUI(IDialogueUIHandler uiHandler)
         {
-            // Initialize에서 이미 주입받았으므로, 이 메서드는 필요 없을 수 있습니다.
-            // 아니면 UI 교체가 필요할 경우를 대비하여 유지할 수 있습니다.
-            // 여기서는 Initialize에서 주입받는 것을 주력으로 하고, 이 메서드는 선택적으로 둡니다.
-            // 만약 DialogueUIHandler가 동적으로 바뀔 수 있다면 유지. 아니면 Initialize에서만 주입받도록 합니다.
-            // 현재 코드에서는 m_RegisteredUI = uiHandler; 이 부분만 필요합니다.
-            _uiHandler = uiHandler; // 주입받는 필드에 직접 할당
+            _uiHandler = uiHandler;
         }
 
-        // IDialogueService 인터페이스 메서드 구현
         public void StartDialogue(string dialogueID)
         {
-            if (_gameResourceService == null) { Debug.LogError("DialogueManager: IGameResourceService가 초기화되지 않았습니다."); return; }
+            if (_gameResourceService == null) { CoreLogger.LogError("DialogueManager: IGameResourceService가 초기화되지 않았습니다.", this); return; }
 
             if (string.IsNullOrEmpty(dialogueID) || dialogueID == noneRegisteredIdentifier)
             {
+                CoreLogger.LogWarning($"DialogueManager: 유효하지 않은 Dialogue ID '{dialogueID}'로 대화 시작 요청.", this);
                 return;
             }
-            // 주입받은 _gameResourceService 사용
+
             DialogueData data = _gameResourceService.GetDataByID<DialogueData>(dialogueID);
             if (data != null)
             {
@@ -111,31 +116,43 @@ namespace Features.UI.Common
             }
             else
             {
-                Debug.LogError($"Dialogue ID '{dialogueID}'를 찾을 수 없습니다!");
+                CoreLogger.LogError($"Dialogue ID '{dialogueID}'를 찾을 수 없습니다!", this);
             }
         }
 
-        // IDialogueService 인터페이스 메서드 구현
         public void StartDialogue(DialogueData data)
         {
-            if (_uiHandler == null) {
-                Debug.LogError("DialogueUI가 등록되지 않아 대화를 시작할 수 없습니다! Initialize()를 통해 주입되었는지 확인해주세요.");
+            if (_uiHandler == null)
+            {
+                CoreLogger.LogError("DialogueUI가 등록되지 않아 대화를 시작할 수 없습니다! Initialize()를 통해 주입되었는지 확인해주세요.", this);
+                return;
+            }
+            if (isDialogueActive)
+            {
+                CoreLogger.LogWarning("DialogueManager: 이미 대화가 활성 상태입니다. 새로운 대화 요청을 무시합니다.", this);
                 return;
             }
 
-            OnDialogueStateChanged?.Invoke(true); // 인스턴스 이벤트 호출
+            OnDialogueStateChanged?.Invoke(true);
 
             currentDialogueData = data;
             isDialogueActive = true;
             isDisplayingChoices = false;
             canProcessInput = true;
 
-            _uiHandler.Show(); // 주입받은 _uiHandler 사용
+            _uiHandler.Show();
 
             dialogueQueue.Clear();
-            foreach (var line in data.dialogueLines)
+            if (data.dialogueLines != null)
             {
-                dialogueQueue.Enqueue(line);
+                foreach (var line in data.dialogueLines)
+                {
+                    dialogueQueue.Enqueue(line);
+                }
+            }
+            else
+            {
+                CoreLogger.LogWarning($"DialogueData '{data.id}'에 대화 라인이 없습니다. 선택지로 바로 넘어갑니다.", this);
             }
 
             DisplayNextLine();
@@ -147,7 +164,7 @@ namespace Features.UI.Common
             {
                 DialogueLine currentLine = dialogueQueue.Dequeue();
                 string speakerName = GetSpeakerName(currentLine.speakerID);
-                _uiHandler.ShowLine(speakerName, currentLine.dialogueText); // 주입받은 _uiHandler 사용
+                _uiHandler.ShowLine(speakerName, currentLine.dialogueText);
 
                 StartCoroutine(EnableInputAfterDelay(0.2f));
             }
@@ -156,7 +173,7 @@ namespace Features.UI.Common
                 if (currentDialogueData != null && currentDialogueData.choices != null && currentDialogueData.choices.Count > 0)
                 {
                     isDisplayingChoices = true;
-                    _uiHandler.ShowChoices(currentDialogueData.choices); // 주입받은 _uiHandler 사용
+                    _uiHandler.ShowChoices(currentDialogueData.choices);
                 }
                 else
                 {
@@ -167,32 +184,41 @@ namespace Features.UI.Common
 
         private string GetSpeakerName(string speakerID)
         {
-            if (_gameResourceService == null) { Debug.LogError("DialogueManager: IGameResourceService가 초기화되지 않았습니다."); return "[ERR]"; }
+            if (_gameResourceService == null) { CoreLogger.LogError("DialogueManager: IGameResourceService가 초기화되지 않았습니다.", this); return "[ERR]"; }
 
             if (string.IsNullOrEmpty(speakerID) || speakerID == noneRegisteredIdentifier) return "";
 
-            // 주입받은 _gameResourceService 사용
             CharacterData speakerData = _gameResourceService.GetDataByID<CharacterData>(speakerID);
             if (speakerData != null)
             {
                 return speakerData.characterName;
             }
 
-            Debug.LogError($"Character ID '{speakerID}'를 찾을 수 없습니다!");
+            CoreLogger.LogError($"Character ID '{speakerID}'를 찾을 수 없습니다!", this);
             return $"[ID:{speakerID} 없음]";
         }
 
-        // IDialogueService 인터페이스 메서드 구현
         public void ProcessChoice(ChoiceData choice)
         {
+            if (_isExecutingChoiceActions)
+            {
+                CoreLogger.LogWarning("DialogueManager: 이미 선택지 액션이 실행 중입니다. 새로운 선택지 처리를 무시합니다.", this);
+                return;
+            }
+            if (choice == null)
+            {
+                CoreLogger.LogError("DialogueManager: 처리할 ChoiceData가 null입니다.", this);
+                EndDialogue();
+                return;
+            }
+
             bool isEffectivelyNoNextDialogue = string.IsNullOrEmpty(choice.nextDialogueID) || choice.nextDialogueID == noneRegisteredIdentifier;
-            // AdvanceDayAction이 어떤 네임스페이스에 있는지 확인 필요
-            // using GameAction; 과 같이 네임스페이스가 필요할 수 있습니다.
             bool containsAdvanceToNextDay = choice.actions != null &&
                                             choice.actions.Any(action => action is AdvanceDayAction);
 
             StartCoroutine(ExecuteChoiceActionsCoroutine(choice.actions, () =>
             {
+                canProcessInput = true; // 액션 실행 완료 후 입력 재활성화
                 if (isEffectivelyNoNextDialogue || containsAdvanceToNextDay)
                 {
                     EndDialogue();
@@ -201,41 +227,115 @@ namespace Features.UI.Common
                 {
                     StartDialogue(choice.nextDialogueID);
                 }
-                canProcessInput = true;
             }));
         }
 
+        /// <summary>
+        /// 현재 실행 중인 선택지 액션을 중단하고 관련 리소스를 해제합니다.
+        /// </summary>
+        /// <param name="reportCancellationError">취소 시 OperationCanceledException을 ReportError로 보고할지 여부.</param>
+        private void StopChoiceActions(bool reportCancellationError = false)
+        {
+            if (!_isExecutingChoiceActions) return;
+
+            CoreLogger.Log("[DialogueManager] 선택지 액션 실행 중단 요청.",CoreLogger.LogLevel.Info, this);
+
+            _choiceActionCts?.Cancel(); // 모든 액션에 취소 요청
+
+            if (reportCancellationError)
+            {
+                ReportError(new OperationCanceledException("Dialogue choice actions were explicitly stopped."));
+            }
+
+            _choiceActionCts?.Dispose();
+            _choiceActionCts = null;
+            _isExecutingChoiceActions = false;
+            CoreLogger.Log("[DialogueManager] 선택지 액션 실행 중단 및 리소스 해제 완료.",CoreLogger.LogLevel.Info, this);
+        }
+
+
         private IEnumerator ExecuteChoiceActionsCoroutine(List<BaseAction> actions, Action onCompleted)
         {
-            if (actions != null)
-            {
-                // DialogueManager 자신이 IGameActionContext이므로, 자신을 Context로 전달합니다.
-                IGameActionContext context = this;
+            _isExecutingChoiceActions = true;
+            _choiceActionCts?.Dispose(); // 이전 CTS가 남아있을 경우 해제
+            _choiceActionCts = new CancellationTokenSource();
+            CancellationToken token = _choiceActionCts.Token;
 
-                foreach (var action in actions)
+            IGameActionContext context = this; // DialogueManager 자신이 Context 역할
+
+            try
+            {
+                if (actions != null)
                 {
-                    if (action != null)
+                    foreach (var action in actions)
                     {
-                        // BaseAction.Execute(this) 대신 BaseAction.Execute(context) 호출
-                        yield return StartCoroutine(action.Execute(context));
+                        if (token.IsCancellationRequested)
+                        {
+                            CoreLogger.Log("[DialogueManager] 선택지 액션 시퀀스 중간에 취소 요청 감지. 종료합니다.",CoreLogger.LogLevel.Info,this);
+                            break;
+                        }
+
+                        if (action == null)
+                        {
+                            CoreLogger.LogWarning("DialogueManager: 선택지 액션 목록에 null 항목이 있습니다. 건너뜜.", this);
+                            continue;
+                        }
+
+                        IEnumerator actionExecution = null;
+                        bool executionSuccess = false;
+
+                        try
+                        {
+                            actionExecution = action.Execute(context);
+                            executionSuccess = true;
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            CoreLogger.Log($"[DialogueManager] 액션 '{action.name}' 실행 중 취소 요청 감지. 시퀀스를 중단합니다.", CoreLogger.LogLevel.Info,this);
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            ReportError(ex);
+                            break;
+                        }
+
+                        if (executionSuccess && actionExecution != null)
+                        {
+                            yield return StartCoroutine(actionExecution);
+                        }
+                        else if (executionSuccess) // actionExecution이 null인 경우
+                        {
+                            CoreLogger.LogWarning($"[DialogueManager] 액션 '{action.name}'이 유효한 코루틴을 반환하지 않았습니다. 다음 액션으로 넘어갑니다.", this);
+                        }
                     }
                 }
             }
-            onCompleted?.Invoke();
+            finally // 코루틴이 어떻게 끝나든 리소스 정리 및 상태 초기화
+            {
+                _isExecutingChoiceActions = false;
+                _choiceActionCts?.Dispose();
+                _choiceActionCts = null;
+                onCompleted?.Invoke(); // 완료 콜백 호출
+                CoreLogger.Log("[DialogueManager] 선택지 액션 실행 완료 또는 중단 후 정리.", CoreLogger.LogLevel.Info,this);
+            }
         }
 
         private void EndDialogue()
         {
-            OnDialogueStateChanged?.Invoke(false); // 인스턴스 이벤트 호출
+            if (!isDialogueActive) return; // 이미 비활성 상태라면 중복 호출 방지
+
+            OnDialogueStateChanged?.Invoke(false);
 
             isDialogueActive = false;
             isDisplayingChoices = false;
             currentDialogueData = null;
-            OnDialogueEnded?.Invoke(); // 인스턴스 이벤트 호출
-            _uiHandler.Hide(); // 주입받은 _uiHandler 사용
+            OnDialogueEnded?.Invoke();
+            _uiHandler?.Hide(); // _uiHandler가 null일 수도 있으므로 ? 추가
+            StopChoiceActions(); // 대화 종료 시 남아있는 선택지 액션도 중단
+            CoreLogger.Log("[DialogueManager] 대화 종료.", CoreLogger.LogLevel.Info,this);
         }
 
-        // IDialogueService 인터페이스 메서드 구현
         public bool IsDialogueActive()
         {
             return isDialogueActive;

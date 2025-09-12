@@ -13,6 +13,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Globalization;
+using Core.Logging;
 
 /// <summary>
 /// CSV 파일을 기반으로 ScriptableObject 에셋들을 자동으로 생성하는 제네릭 임포터입니다.
@@ -53,7 +54,7 @@ public class GenericCsvImporter : ScriptedImporter
 
     public override void OnImportAsset(AssetImportContext ctx)
     {
-        Debug.Log($"<color=lime>--- Starting import for {Path.GetFileName(ctx.assetPath)} ---</color>");
+        CoreLogger.Log($"<color=lime>--- Starting import for {Path.GetFileName(ctx.assetPath)} ---</color>");
 
         RefreshCache();
 
@@ -62,7 +63,7 @@ public class GenericCsvImporter : ScriptedImporter
             ctx.LogImportWarning("Importer configuration needed. Please select this CSV file and set the 'Target Type Assembly Qualified Name' in the Inspector, then click 'Apply'.");
             return;
         }
-        Debug.Log($"Target Type: {targetTypeAssemblyQualifiedName}");
+        CoreLogger.Log($"Target Type: {targetTypeAssemblyQualifiedName}");
 
         Type soType = Type.GetType(targetTypeAssemblyQualifiedName);
         if (soType == null)
@@ -74,10 +75,10 @@ public class GenericCsvImporter : ScriptedImporter
         var parsedData = CSVParser.ParseFromString(File.ReadAllText(ctx.assetPath));
         if (parsedData == null || parsedData.Count == 0)
         {
-            Debug.LogWarning($"[{Path.GetFileName(ctx.assetPath)}] CSV file is empty or could not be parsed. Parsed data count: {(parsedData?.Count ?? 0)}");
+            CoreLogger.LogWarning($"[{Path.GetFileName(ctx.assetPath)}] CSV file is empty or could not be parsed. Parsed data count: {(parsedData?.Count ?? 0)}");
             return;
         }
-        Debug.Log($"Successfully parsed {parsedData.Count} rows from CSV.");
+        CoreLogger.Log($"Successfully parsed {parsedData.Count} rows from CSV.");
 
         var container = ScriptableObject.CreateInstance<DataImportContainer>();
         container.name = Path.GetFileNameWithoutExtension(ctx.assetPath) + " Data";
@@ -87,16 +88,16 @@ public class GenericCsvImporter : ScriptedImporter
         switch (strategy)
         {
             case ImportStrategy.Simple:
-                Debug.Log("Using Simple import strategy.");
+                CoreLogger.Log("Using Simple import strategy.");
                 ImportSimpleData(ctx, parsedData, container, soType);
                 break;
             case ImportStrategy.GroupedById:
-                Debug.Log("Using GroupedById import strategy.");
+                CoreLogger.Log("Using GroupedById import strategy.");
                 ImportGroupedData(ctx, parsedData, container, soType);
                 break;
         }
 
-        Debug.Log($"<color=cyan>[{Path.GetFileName(ctx.assetPath)}] Import process finished. Check for created sub-assets.</color>");
+        CoreLogger.Log($"<color=cyan>[{Path.GetFileName(ctx.assetPath)}] Import process finished. Check for created sub-assets.</color>");
     }
 
     #region Import Strategies

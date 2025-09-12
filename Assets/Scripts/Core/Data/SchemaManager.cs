@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Core.Logging;
 using Newtonsoft.Json;
 using UnityEngine;
 
@@ -50,14 +51,14 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
             TextAsset sqlJson = Resources.Load<TextAsset>("SQLSchemas");
             if (sqlJson == null)
             {
-                Debug.LogError("[SchemaManager] Resources/SQLSchemas.json file not found! Unable to load database schemas.");
+                CoreLogger.LogError("[SchemaManager] Resources/SQLSchemas.json file not found! Unable to load database schemas.");
                 throw new FileNotFoundException("SQLSchemas.json file not found in Resources.", "SQLSchemas");
             }
 
             var rawQueries = JsonConvert.DeserializeObject<Dictionary<string, string>>(sqlJson.text);
             if (rawQueries == null)
             {
-                Debug.LogError("[SchemaManager] Failed to deserialize SQLSchemas.json. File content might be invalid.");
+                CoreLogger.LogError("[SchemaManager] Failed to deserialize SQLSchemas.json. File content might be invalid.");
                 return;
             }
 
@@ -69,20 +70,20 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
                 Match match = TableNameRegex.Match(createQuery);
                 if (!match.Success)
                 {
-                    Debug.LogWarning($"[SchemaManager] Could not extract table name from query: '{createQuery}'. Skipping.");
+                    CoreLogger.LogWarning($"[SchemaManager] Could not extract table name from query: '{createQuery}'. Skipping.");
                     continue;
                 }
                 string actualTableName = match.Groups["TableName"].Value;
 
                 if (string.IsNullOrWhiteSpace(actualTableName))
                 {
-                    Debug.LogWarning($"[SchemaManager] Extracted empty table name from query: '{createQuery}'. Skipping.");
+                    CoreLogger.LogWarning($"[SchemaManager] Extracted empty table name from query: '{createQuery}'. Skipping.");
                     continue;
                 }
 
                 if (m_TableSchemas.ContainsKey(actualTableName)) // 실제 테이블 이름으로 검사
                 {
-                    Debug.LogWarning($"[SchemaManager] Duplicate table name '{actualTableName}' found in schema. Overwriting.");
+                    CoreLogger.LogWarning($"[SchemaManager] Duplicate table name '{actualTableName}' found in schema. Overwriting.");
                 }
 
                 m_TableSchemas[actualTableName] = new TableSchema // 실제 테이블 이름으로 저장
@@ -91,9 +92,9 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
                     CreateQuery = createQuery,
                     Columns = new List<ColumnSchema>() // TODO: 실제 파싱 로직 구현
                 };
-                Debug.Log($"[SchemaManager] Loaded schema for table: {actualTableName} (from JSON key '{entry.Key}')");
+                CoreLogger.Log($"[SchemaManager] Loaded schema for table: {actualTableName} (from JSON key '{entry.Key}')");
             }
-            Debug.Log($"[SchemaManager] Loaded {m_TableSchemas.Count} table schemas.");
+            CoreLogger.Log($"[SchemaManager] Loaded {m_TableSchemas.Count} table schemas.");
         }
         /// <summary>
         /// SQLSchemas.json 파일에서 스키마 정보를 로드하고 파싱합니다.
@@ -103,7 +104,7 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
             TextAsset sqlJson = Resources.Load<TextAsset>("SQLSchemas");
             if (sqlJson == null)
             {
-                Debug.LogError("[SchemaManager] Resources/SQLSchemas.json file not found! Unable to load database schemas.");
+                CoreLogger.LogError("[SchemaManager] Resources/SQLSchemas.json file not found! Unable to load database schemas.");
                 throw new FileNotFoundException("SQLSchemas.json file not found in Resources.", "SQLSchemas");
             }
 
@@ -116,7 +117,7 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
             var rawQueries = JsonConvert.DeserializeObject<Dictionary<string, string>>(sqlJson.text);
             if (rawQueries == null)
             {
-                Debug.LogError("[SchemaManager] Failed to deserialize SQLSchemas.json. File content might be invalid.");
+                CoreLogger.LogError("[SchemaManager] Failed to deserialize SQLSchemas.json. File content might be invalid.");
                 return;
             }
 
@@ -129,13 +130,13 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
 
                 if (string.IsNullOrWhiteSpace(tableName))
                 {
-                    Debug.LogWarning($"[SchemaManager] Skipping entry with empty table name in SQLSchemas.json: {entry.Value}");
+                    CoreLogger.LogWarning($"[SchemaManager] Skipping entry with empty table name in SQLSchemas.json: {entry.Value}");
                     continue;
                 }
 
                 if (m_TableSchemas.ContainsKey(tableName))
                 {
-                    Debug.LogWarning($"[SchemaManager] Duplicate table name '{tableName}' found in SQLSchemas.json. Overwriting.");
+                    CoreLogger.LogWarning($"[SchemaManager] Duplicate table name '{tableName}' found in SQLSchemas.json. Overwriting.");
                 }
 
                 // TODO: 여기에서 CREATE TABLE 쿼리를 파싱하여 ColumnSchema 목록을 채워야 합니다.
@@ -146,9 +147,9 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
                     CreateQuery = entry.Value,
                     Columns = new List<ColumnSchema>() // 실제 파싱 로직 구현 필요
                 };
-                Debug.Log($"[SchemaManager] Loaded schema for table: {tableName}");
+                CoreLogger.Log($"[SchemaManager] Loaded schema for table: {tableName}");
             }
-            Debug.Log($"[SchemaManager] Loaded {m_TableSchemas.Count} table schemas.");
+            CoreLogger.Log($"[SchemaManager] Loaded {m_TableSchemas.Count} table schemas.");
         }
 
         /// <summary>
@@ -178,7 +179,7 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
             // 컬럼 이름에는 공백, 세미콜론, 따옴표 등을 포함해서는 안 됩니다.
             if (columnName.Any(char.IsWhiteSpace) || columnName.Contains(";") || columnName.Contains("'") || columnName.Contains("\"") || columnName.Contains("--"))
             {
-                Debug.LogWarning($"[SchemaManager] Column name '{columnName}' for table '{tableName}' contains invalid characters.");
+                CoreLogger.LogWarning($"[SchemaManager] Column name '{columnName}' for table '{tableName}' contains invalid characters.");
                 return false;
             }
 

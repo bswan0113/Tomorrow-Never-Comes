@@ -1,8 +1,11 @@
+// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Features\Player\PlayerController.cs
+
 using System.Collections;
 using System.Linq;
 using Core.Interface;
 using Core.Interface.Core.Interface;
-using Features.World;
+using Core.Logging;
+using Features.World; // ISceneTransitionService를 사용하기 위해 추가
 using UnityEngine;
 using VContainer;
 
@@ -28,18 +31,21 @@ namespace Features.Player
         private Vector2 moveDirection;
         private Vector2 _lastNonZeroMoveDirection = Vector2.down; // 기본값은 아래쪽 (캐릭터가 처음에 바라보는 방향)
 
-        private bool canControl = true;
-        private bool isInteractionLocked = false;
+        private bool _canMove = true; // 이동 가능 여부
+        private bool _canInteract = true; // 상호작용 가능 여부 (interactionBufferTime과 별개로 전체 제어)
+        private bool _isInteractionLockedByBuffer = false; // interactionBufferTime에 의한 상호작용 잠금
 
         private IDialogueService _dialogueService;
         private IGameService _gameService;
+        private ISceneTransitionService _sceneTransitionService; // 추가: 씬 전환 서비스
 
         [Inject]
-        public void Construct(IDialogueService dialogueService, IGameService gameService)
+        public void Construct(IDialogueService dialogueService, IGameService gameService, ISceneTransitionService sceneTransitionService) // ISceneTransitionService 주입
         {
             _dialogueService = dialogueService ?? throw new System.ArgumentNullException(nameof(dialogueService));
             _gameService = gameService ?? throw new System.ArgumentNullException(nameof(gameService));
-            Debug.Log($"{gameObject.name}: 서비스 주입 완료");
+            _sceneTransitionService = sceneTransitionService ?? throw new System.ArgumentNullException(nameof(sceneTransitionService)); // 씬 전환 서비스 null 체크
+            CoreLogger.Log($"{gameObject.name}: 서비스 주입 완료");
         }
 
         private void OnEnable()
@@ -47,6 +53,10 @@ namespace Features.Player
             if (_dialogueService != null)
             {
                 _dialogueService.OnDialogueStateChanged += HandleDialogueStateChanged;
+            }
+            if (_sceneTransitionService != null) // 추가: 씬 전환 이벤트 구독
+            {
+                _sceneTransitionService.OnTransitionStateChanged += HandleTransitionStateChanged;
             }
         }
 
@@ -56,6 +66,10 @@ namespace Features.Player
             {
                 _dialogueService.OnDialogueStateChanged -= HandleDialogueStateChanged;
             }
+            if (_sceneTransitionService != null) // 추가: 씬 전환 이벤트 구독 해제
+            {
+                _sceneTransitionService.OnTransitionStateChanged -= HandleTransitionStateChanged;
+            }
         }
 
         void Start()
@@ -63,37 +77,71 @@ namespace Features.Player
             rb = GetComponent<Rigidbody2D>();
             animator = GetComponent<Animator>();
             spriteRenderer = GetComponent<SpriteRenderer>();
+
+            // 초기 상태 설정
+            UpdateControlState();
         }
 
         private void HandleDialogueStateChanged(bool isDialogueActive)
         {
-            canControl = !isDialogueActive;
-            if (!canControl)
+            UpdateControlState();
+            if (isDialogueActive) // 대화 시작 시
             {
+                // 즉시 이동 중단 및 애니메이션 정지
                 rb.linearVelocity = Vector2.zero;
                 animator.SetBool("isWalking", false);
             }
-            else
+            else // 대화 종료 시
             {
+                // 상호작용 버퍼 시간 적용 (대화 종료 후 바로 다른 상호작용 막기 위함)
                 StartCoroutine(LockInteractionForBufferTime());
             }
         }
 
+        // 추가: 씬 전환 상태 변경 핸들러
+        private void HandleTransitionStateChanged(bool isTransitioning)
+        {
+            UpdateControlState();
+            if (isTransitioning) // 씬 전환 시작 시
+            {
+                // 즉시 이동 중단 및 애니메이션 정지
+                rb.linearVelocity = Vector2.zero;
+                animator.SetBool("isWalking", false);
+            }
+        }
+
+        // 플레이어의 전반적인 제어 가능 상태를 업데이트하는 통합 메서드
+        private void UpdateControlState()
+        {
+            // 대화 중이거나 씬 전환 중이면 이동 및 상호작용 불가능
+            bool isBlockedByDialogueOrTransition = (_dialogueService != null && _dialogueService.IsDialogueActive()) ||
+                                                  (_sceneTransitionService != null && _sceneTransitionService.IsTransitioning);
+
+            _canMove = !isBlockedByDialogueOrTransition;
+            _canInteract = !isBlockedByDialogueOrTransition && !_isInteractionLockedByBuffer;
+        }
+
         void Update()
         {
-            if (!canControl) return;
-
-            float horizontalInput = Input.GetAxisRaw("Horizontal");
-            float verticalInput = Input.GetAxisRaw("Vertical");
-            moveDirection = new Vector2(horizontalInput, verticalInput).normalized;
-
-            // 플레이어의 이동 방향이 있다면 최종 이동 방향을 업데이트 (정지 시에도 마지막 바라보는 방향 유지)
-            if (moveDirection != Vector2.zero)
+            // 이동 처리
+            if (_canMove)
             {
-                _lastNonZeroMoveDirection = moveDirection;
+                float horizontalInput = Input.GetAxisRaw("Horizontal");
+                float verticalInput = Input.GetAxisRaw("Vertical");
+                moveDirection = new Vector2(horizontalInput, verticalInput).normalized;
+
+                if (moveDirection != Vector2.zero)
+                {
+                    _lastNonZeroMoveDirection = moveDirection;
+                }
+            }
+            else
+            {
+                moveDirection = Vector2.zero; // 제어 불가능 상태에서는 이동 입력 무시
             }
 
-            if (Input.GetKeyDown(interactionKey) && !isInteractionLocked)
+            // 상호작용 처리
+            if (_canInteract && Input.GetKeyDown(interactionKey))
             {
                 TryInteract();
             }
@@ -103,15 +151,19 @@ namespace Features.Player
 
         void FixedUpdate()
         {
-            if (canControl)
+            if (_canMove)
             {
                 rb.linearVelocity = moveDirection * moveSpeed;
+            }
+            else
+            {
+                rb.linearVelocity = Vector2.zero; // 제어 불가능 상태에서는 플레이어 강제 정지
             }
         }
 
         void UpdateAnimationParameters()
         {
-            bool isMoving = moveDirection.magnitude > 0.1f;
+            bool isMoving = moveDirection.magnitude > 0.1f; // _canMove 상태와 무관하게 실제 moveDirection으로 판단
             animator.SetBool("isWalking", isMoving);
             if (isMoving)
             {
@@ -127,51 +179,55 @@ namespace Features.Player
                     spriteRenderer.flipX = false;
                 }
             }
+            // 이동이 중단된 경우에도 캐릭터는 마지막 바라보는 방향을 유지해야 하므로, flipX는 여기서 변경하지 않습니다.
         }
 
         private void TryInteract()
         {
-            if (_dialogueService != null && _dialogueService.IsDialogueActive())
+            if (!_canInteract) // 상호작용이 불가능한 상태라면 즉시 반환
             {
+                CoreLogger.Log("Interaction currently blocked.");
                 return;
             }
 
+            // _isInteractionLockedByBuffer는 _canInteract에 포함되므로 이 중복 체크는 제거 가능하지만,
+            // 명시성을 위해 남겨둘 수도 있습니다. 여기서는 _canInteract에 포함시켰습니다.
+
             Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, interactionDistance);
 
-            // 상호작용 가능한 오브젝트들 중 플레이어의 전방에 있는 오브젝트만 필터링
             var potentialInteractables = colliders.Select(c => c.GetComponent<IInteractable>())
                 .Where(i => i != null)
                 .OfType<MonoBehaviour>()
                 .Where(m => {
-                    // 플레이어 위치에서 오브젝트까지의 방향 벡터
                     Vector2 directionToObject = (m.transform.position - transform.position).normalized;
-                    // 플레이어의 현재 바라보는 방향과 오브젝트 방향의 내적
                     float dotProduct = Vector2.Dot(_lastNonZeroMoveDirection, directionToObject);
-                    // 내적 값이 임계값보다 크면 전방에 있다고 판단
                     return dotProduct > interactionDotProductThreshold;
                 })
                 .Select(m => m.GetComponent<IInteractable>());
 
-            // 필터링된 오브젝트들 중 가장 가까운 오브젝트 선택
             var nearestInteractable = potentialInteractables.OrderBy(m => Vector2.Distance(transform.position, (m as MonoBehaviour).transform.position))
                 .FirstOrDefault();
 
             if (nearestInteractable != null)
             {
-                Debug.Log($"<color=green>Nearest interactable found: {(nearestInteractable as MonoBehaviour).gameObject.name}. Calling Interact()...</color>");
+                CoreLogger.Log($"<color=green>Nearest interactable found: {(nearestInteractable as MonoBehaviour).gameObject.name}. Calling Interact()...</color>");
                 nearestInteractable.Interact();
+                // 상호작용 성공 후 버퍼 시간 적용
+                StartCoroutine(LockInteractionForBufferTime());
             }
             else
             {
-                Debug.Log("주변에 상호작용할 수 있는 것이 없습니다.");
+                CoreLogger.Log("주변에 상호작용할 수 있는 것이 없습니다.");
             }
         }
 
         private IEnumerator LockInteractionForBufferTime()
         {
-            isInteractionLocked = true;
+            _isInteractionLockedByBuffer = true;
+            UpdateControlState(); // 버퍼 잠금 상태가 변경되었으므로 제어 상태 업데이트
             yield return new WaitForSeconds(interactionBufferTime);
-            isInteractionLocked = false;
+            _isInteractionLockedByBuffer = false;
+            UpdateControlState(); // 버퍼 잠금 해제 상태가 변경되었으므로 제어 상태 업데이트
         }
 
         private void OnDrawGizmosSelected()
@@ -179,14 +235,11 @@ namespace Features.Player
             Gizmos.color = Color.yellow;
             Gizmos.DrawWireSphere(transform.position, interactionDistance);
 
-            // Gizmos로 플레이어의 바라보는 방향 시각화
             Gizmos.color = Color.blue;
             Gizmos.DrawLine(transform.position, (Vector2)transform.position + _lastNonZeroMoveDirection * interactionDistance);
 
-            // Gizmos로 상호작용 범위 (Cone) 시각화 (대략적)
-            // Cosine 값을 이용하여 각도 계산 (interactionDotProductThreshold 가 cosine 값)
             float angle = Mathf.Acos(interactionDotProductThreshold) * Mathf.Rad2Deg;
-            if (float.IsNaN(angle)) angle = 0f; // handle threshold 1 (angle 0)
+            if (float.IsNaN(angle)) angle = 0f;
 
             Vector3 fwd = _lastNonZeroMoveDirection;
             Vector3 left = Quaternion.Euler(0, 0, angle) * fwd;

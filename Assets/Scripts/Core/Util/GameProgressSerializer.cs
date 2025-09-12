@@ -1,4 +1,5 @@
 using Core.Data.Interface;
+using Core.Logging;
 using Features.Data;
 
 namespace Core.Util
@@ -38,7 +39,7 @@ public class GameProgressSerializer : IDataSerializer<GameProgressData>
     {
         if (dataMap == null || dataMap.Count == 0)
         {
-            UnityEngine.Debug.LogWarning("[GameProgressSerializer] Data map is null or empty, returning null GameProgressData.");
+            CoreLogger.LogWarning("[GameProgressSerializer] Data map is null or empty, returning null GameProgressData.");
             return null;
         }
 
@@ -54,22 +55,22 @@ public class GameProgressSerializer : IDataSerializer<GameProgressData>
         }
         catch (KeyNotFoundException ex)
         {
-            UnityEngine.Debug.LogError($"[GameProgressSerializer] Missing key in data map during deserialization: {ex.Message}");
+            CoreLogger.LogError($"[GameProgressSerializer] Missing key in data map during deserialization: {ex.Message}");
             return null;
         }
         catch (InvalidCastException ex)
         {
-            UnityEngine.Debug.LogError($"[GameProgressSerializer] Type cast error during deserialization: {ex.Message}");
+            CoreLogger.LogError($"[GameProgressSerializer] Type cast error during deserialization: {ex.Message}");
             return null;
         }
         catch (FormatException ex)
         {
-            UnityEngine.Debug.LogError($"[GameProgressSerializer] Date time format error during deserialization: {ex.Message}");
+            CoreLogger.LogError($"[GameProgressSerializer] Date time format error during deserialization: {ex.Message}");
             return null;
         }
         catch (Exception ex)
         {
-            UnityEngine.Debug.LogError($"[GameProgressSerializer] Unexpected error during deserialization: {ex.Message}");
+            CoreLogger.LogError($"[GameProgressSerializer] Unexpected error during deserialization: {ex.Message}");
             return null;
         }
     }

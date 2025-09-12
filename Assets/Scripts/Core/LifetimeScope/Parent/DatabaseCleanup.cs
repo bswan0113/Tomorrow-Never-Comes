@@ -1,5 +1,6 @@
 using System;
 using Core.Data.Interface;
+using Core.Logging;
 using UnityEngine;
 
 namespace Core.LifetimeScope.Parent
@@ -19,7 +20,7 @@ namespace Core.LifetimeScope.Parent
         private void OnApplicationQuit()
         {
             _databaseAccess.CloseConnection();
-            Debug.Log("Database connection closed");
+            CoreLogger.Log("Database connection closed");
         }
 
         public void Dispose()

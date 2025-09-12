@@ -2,6 +2,7 @@
 using UnityEngine;
 using System;
 using Core.Interface;
+using Core.Logging;
 using Features.Player;
 using UnityEngine.Playables;
 
@@ -22,7 +23,7 @@ public class StatCheckCondition : BaseCondition
     {
         if (playerService == null || playerService.StatsData == null)
         {
-            Debug.LogError("[StatCheckCondition] PlayerDataManager 또는 PlayerStatus가 초기화되지 않았습니다.");
+            CoreLogger.LogError("[StatCheckCondition] PlayerDataManager 또는 PlayerStatus가 초기화되지 않았습니다.");
             return false;
         }
 
@@ -31,7 +32,7 @@ public class StatCheckCondition : BaseCondition
 
         if (propertyInfo == null)
         {
-            Debug.LogError($"[StatCheckCondition] PlayerStatus에 '{targetStatName}'이라는 스탯이 없습니다.");
+            CoreLogger.LogError($"[StatCheckCondition] PlayerStatus에 '{targetStatName}'이라는 스탯이 없습니다.");
             return false;
         }
 

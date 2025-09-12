@@ -9,24 +9,27 @@ namespace Core.Logging
     
         public static void Log(string message, LogLevel level = LogLevel.Info, Object context = null)
         {
-            switch (level)
-            {
-                case LogLevel.Debug:
-                    Debug.Log($"[DEBUG] {message}", context);
-                    break;
-                case LogLevel.Info:
-                    Debug.Log($"[INFO] {message}", context);
-                    break;
-                case LogLevel.Warning:
-                    Debug.LogWarning($"[WARNING] {message}", context);
-                    break;
-                case LogLevel.Error:
-                    Debug.LogError($"[ERROR] {message}", context);
-                    break;
-                case LogLevel.Critical:
-                    Debug.LogError($"[CRITICAL] {message} - IMMEDIATE ATTENTION NEEDED!", context);
-                    break;
-            }
+            #if UNITY_EDITOR || DEVELOPMENT_BUILD
+                switch (level)
+                {
+                    case LogLevel.Debug:
+                        Debug.Log($"[DEBUG] {message}", context);
+                        break;
+                    case LogLevel.Info:
+                        Debug.Log($"[INFO] {message}", context);
+                        break;
+                    case LogLevel.Warning:
+                        Debug.LogWarning($"[WARNING] {message}", context);
+                        break;
+                    case LogLevel.Error:
+                        Debug.LogError($"[ERROR] {message}", context);
+                        break;
+                    case LogLevel.Critical:
+                        Debug.LogError($"[CRITICAL] {message} - IMMEDIATE ATTENTION NEEDED!", context);
+                        break;
+                }
+            #endif
+
         }
     
         public static void LogError(string message, Object context = null) => Log(message, LogLevel.Error, context);

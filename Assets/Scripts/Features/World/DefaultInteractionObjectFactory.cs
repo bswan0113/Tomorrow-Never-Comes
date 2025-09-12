@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Core.Logging;
 using UnityEngine;
 using VContainer;
 using VContainer.Unity; // IObjectResolver를 위해 필요
@@ -13,19 +14,19 @@ namespace Features.World
         public DefaultInteractionObjectFactory(IObjectResolver resolver)
         {
             _resolver = resolver;
-            Debug.Log("DefaultInteractionObjectFactory 초기화 완료.");
+            CoreLogger.Log("DefaultInteractionObjectFactory 초기화 완료.");
         }
 
         public InteractionObject Create(InteractionObjectData data, Vector3 position, Transform parent = null)
         {
             if (data == null)
             {
-                Debug.LogError("InteractionObjectData가 null입니다. InteractionObject를 생성할 수 없습니다.");
+                CoreLogger.LogError("InteractionObjectData가 null입니다. InteractionObject를 생성할 수 없습니다.");
                 return null;
             }
             if (data.InteractionObjectPrefab == null)
             {
-                Debug.LogError($"InteractionObjectData '{data.name}'에 연결된 프리팹이 없습니다. InteractionObject를 생성할 수 없습니다.");
+                CoreLogger.LogError($"InteractionObjectData '{data.name}'에 연결된 프리팹이 없습니다. InteractionObject를 생성할 수 없습니다.");
                 return null;
             }
 
@@ -37,7 +38,7 @@ namespace Features.World
 
             if (interactionObject == null)
             {
-                Debug.LogError($"프리팹 '{data.InteractionObjectPrefab.name}'에 InteractionObject 컴포넌트가 없습니다. 생성 실패.");
+                CoreLogger.LogError($"프리팹 '{data.InteractionObjectPrefab.name}'에 InteractionObject 컴포넌트가 없습니다. 생성 실패.");
                 GameObject.Destroy(instanceGO);
                 return null;
             }
@@ -57,7 +58,7 @@ namespace Features.World
             // 추가적인 초기화 로직 (예: 오브젝트 이름 설정)
             instanceGO.name = $"InteractionObject_{data.name}_{System.Guid.NewGuid().ToString().Substring(0, 4)}";
 
-            Debug.Log($"InteractionObject '{instanceGO.name}' 생성 및 초기화 완료.");
+            CoreLogger.Log($"InteractionObject '{instanceGO.name}' 생성 및 초기화 완료.");
             return interactionObject;
         }
     }

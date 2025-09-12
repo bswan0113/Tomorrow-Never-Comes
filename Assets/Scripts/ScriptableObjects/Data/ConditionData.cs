@@ -1,4 +1,6 @@
 // 경로: C:\Workspace\Tomorrow Never Comes\Assets\Scripts\ScriptableObjects\ConditionData.cs
+
+using Core.Logging;
 using UnityEngine;
 
 // 기존에 있던 enum 선언은 이제 필요 없으므로 삭제합니다.
@@ -25,7 +27,7 @@ public class ConditionData : GameData
     {
         if (conditionLogic == null)
         {
-            Debug.LogWarning($"ConditionData '{name}'에 conditionLogic이 할당되지 않았습니다.", this);
+            CoreLogger.LogWarning($"ConditionData '{name}'에 conditionLogic이 할당되지 않았습니다.", this);
             return false;
         }
         return conditionLogic.IsMet();

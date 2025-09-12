@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Core.Interface;
 using Core.Interface.Core.Interface;
+using Core.Logging;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -42,11 +43,11 @@ namespace Features.UI.Common
         {
             if (_dialogueService == null)
             {
-                Debug.LogError("DialogueUIHandler: IDialogueService가 주입되지 않았습니다.");
+                CoreLogger.LogError("DialogueUIHandler: IDialogueService가 주입되지 않았습니다.");
             }
             else
             {
-                Debug.Log("[DialogueUIHandler] IDialogueService 주입 확인됨.");
+                CoreLogger.Log("[DialogueUIHandler] IDialogueService 주입 확인됨.");
             }
         }
 
@@ -107,7 +108,7 @@ namespace Features.UI.Common
         {
             if (_dialogueService == null)
             {
-                Debug.LogError("DialogueUIHandler: IDialogueService가 주입되지 않았습니다.");
+                CoreLogger.LogError("DialogueUIHandler: IDialogueService가 주입되지 않았습니다.");
                 return;
             }
 

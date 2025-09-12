@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using Core.Logging;
 
 public class DataImporterWindow : EditorWindow
 {
@@ -105,7 +106,7 @@ public class DataImporterWindow : EditorWindow
         Type soType = Type.GetType(profile.soTypeFullName);
         if (soType == null || profile.csvFile == null)
         {
-            Debug.LogError($"[{profile.profileName}] Profile is not configured correctly.");
+            CoreLogger.LogError($"[{profile.profileName}] Profile is not configured correctly.");
             return;
         }
 
@@ -124,7 +125,7 @@ public class DataImporterWindow : EditorWindow
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Debug.Log($"<color=cyan>[{profile.profileName}] Import complete.</color>");
+        CoreLogger.Log($"<color=cyan>[{profile.profileName}] Import complete.</color>");
     }
 
     private void ImportGenericData(ImporterProfile profile, Type soType, string prefix)
@@ -164,7 +165,7 @@ public class DataImporterWindow : EditorWindow
                     }
                     catch (Exception e)
                     {
-                        Debug.LogError($"Failed to convert value '{row[header]}' for field '{header}' in asset {finalId}. Error: {e.Message}");
+                        CoreLogger.LogError($"Failed to convert value '{row[header]}' for field '{header}' in asset {finalId}. Error: {e.Message}");
                     }
                 }
             }

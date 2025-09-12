@@ -1,4 +1,5 @@
 using Core.Interface;
+using Core.Logging;
 using TMPro;
 using UnityEngine;
 using VContainer;
@@ -24,7 +25,7 @@ namespace Features.UI.Common
             _playerService = playerService;
             _gameService = gameService;
 
-            Debug.Log($"{gameObject.name}: 서비스 주입 완료");
+            CoreLogger.Log($"{gameObject.name}: 서비스 주입 완료");
         }
 
         private void OnEnable()
@@ -57,7 +58,7 @@ namespace Features.UI.Common
 
         private void Start()
         {
-            Debug.Log("StatusUIController Initializing...");
+            CoreLogger.Log("StatusUIController Initializing...");
 
             if (_gameService != null)
             {

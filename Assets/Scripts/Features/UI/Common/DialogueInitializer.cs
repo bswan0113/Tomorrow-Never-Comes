@@ -1,5 +1,6 @@
 using Core.Interface;
 using Core.Interface.Core.Interface;
+using Core.Logging;
 using UnityEngine;
 
 namespace Features.UI.Common
@@ -24,7 +25,7 @@ namespace Features.UI.Common
         public void Start()
         {
             _dialogueService.RegisterDialogueUI(_dialogueUIHandler);
-            Debug.Log("DialogueUIHandler가 DialogueManager에 성공적으로 등록되었습니다.");
+            CoreLogger.Log("DialogueUIHandler가 DialogueManager에 성공적으로 등록되었습니다.");
         }
     }
 }

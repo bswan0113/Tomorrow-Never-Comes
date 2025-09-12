@@ -3,6 +3,7 @@
 using System;
 using Core.Data.Interface;
 using Core.Interface;
+using Core.Logging;
 using UnityEngine;
 
 namespace Features.Player
@@ -26,7 +27,7 @@ namespace Features.Player
             _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
 
             LoadPlayerData(); // DataManager가 준비된 후 호출됩니다.
-            Debug.Log($"<color=lightblue>[PlayerDataManager] 초기화 완료. 현재 지능: {StatsData.Intellect}</color>");
+            CoreLogger.Log($"<color=lightblue>[PlayerDataManager] 초기화 완료. 현재 지능: {StatsData.Intellect}</color>");
         }
 
         public void Initialize()
@@ -42,7 +43,7 @@ namespace Features.Player
         {
             if (_dataService == null)
             {
-                Debug.LogError("PlayerDataManager: IDataService가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
+                CoreLogger.LogError("PlayerDataManager: IDataService가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
                 return;
             }
 
@@ -62,17 +63,17 @@ namespace Features.Player
                         HeroineBLiked = Convert.ToInt32(row["HeroineBLiked"]),
                         HeroineCLiked = Convert.ToInt32(row["HeroineCLiked"]),
                     };
-                    Debug.Log("플레이어 데이터를 DB에서 로드했습니다.");
+                    CoreLogger.Log("플레이어 데이터를 DB에서 로드했습니다.");
                 }
                 else
                 {
-                    Debug.LogError("세이브 데이터 플래그는 있으나, PlayerStats 테이블에서 데이터를 가져오지 못했습니다. 새 데이터로 시작합니다.");
+                    CoreLogger.LogError("세이브 데이터 플래그는 있으나, PlayerStats 테이블에서 데이터를 가져오지 못했습니다. 새 데이터로 시작합니다.");
                     InitializeNewPlayerData();
                 }
             }
             else
             {
-                Debug.Log("세이브 데이터가 없습니다. 새로운 플레이어 데이터를 생성합니다.");
+                CoreLogger.Log("세이브 데이터가 없습니다. 새로운 플레이어 데이터를 생성합니다.");
                 InitializeNewPlayerData();
             }
         }
@@ -84,7 +85,7 @@ namespace Features.Player
         {
             if (_dataService == null)
             {
-                Debug.LogError("PlayerDataManager: IDataService가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
+                CoreLogger.LogError("PlayerDataManager: IDataService가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
                 return;
             }
             StatsData = new PlayerStatsData();
@@ -102,7 +103,7 @@ namespace Features.Player
         {
             if (_dataService == null)
             {
-                Debug.LogError("PlayerDataManager: IDataService가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
+                CoreLogger.LogError("PlayerDataManager: IDataService가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
                 return;
             }
             if (StatsData == null) return;
@@ -114,7 +115,7 @@ namespace Features.Player
                 "SaveSlotID",
                 1
             );
-            Debug.Log("플레이어 데이터를 DB에 저장(업데이트)했습니다.");
+            CoreLogger.Log("플레이어 데이터를 DB에 저장(업데이트)했습니다.");
         }
 
         // --- 외부에서 스탯을 안전하게 변경하기 위한 메서드들 ---
@@ -123,7 +124,7 @@ namespace Features.Player
         {
             StatsData.Intellect += amount;
             NotifyStatusChanged();
-            Debug.Log($"지능 스탯 {amount} 증가! 현재 지능: {StatsData.Intellect}");
+            CoreLogger.Log($"지능 스탯 {amount} 증가! 현재 지능: {StatsData.Intellect}");
         }
 
         public void AddCharm(int amount)

@@ -4,6 +4,7 @@ using System;
 using System.Linq;
 using Core.Data.Interface;
 using Core.Interface;
+using Core.Logging;
 using UnityEngine;
 using VContainer;
 
@@ -42,7 +43,7 @@ namespace Core
             _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
 
             currentActionPoint = maxActionPoint; // 초기화 로직은 생성자에서 수행
-            Debug.Log("GameManager 초기화 완료 (DI 방식)");
+            CoreLogger.Log("GameManager 초기화 완료 (DI 방식)");
         }
 
         public void StartGame()
@@ -59,13 +60,13 @@ namespace Core
             if (currentActionPoint >= amount)
             {
                 currentActionPoint -= amount;
-                Debug.Log($"행동력 {amount} 소모. 남은 행동력: {currentActionPoint}");
+                CoreLogger.Log($"행동력 {amount} 소모. 남은 행동력: {currentActionPoint}");
                 OnActionPointChanged?.Invoke();
                 return true;
             }
             else
             {
-                Debug.LogWarning("행동력이 부족합니다!");
+                CoreLogger.LogWarning("행동력이 부족합니다!");
                 return false;
             }
         }
@@ -76,7 +77,7 @@ namespace Core
             {
                 SaveGameProgress();
                 dayCount++;
-                Debug.Log($"<color=yellow>========== {dayCount}일차 아침이 밝았습니다. ==========</color>");
+                CoreLogger.Log($"<color=yellow>========== {dayCount}일차 아침이 밝았습니다. ==========</color>");
 
                 currentActionPoint = maxActionPoint;
 
@@ -101,33 +102,33 @@ namespace Core
 
             if (currentDayRule == null)
             {
-                Debug.Log($"[{dayCount}일차] 특별 생존 규칙 없음. 통과.");
+                CoreLogger.Log($"[{dayCount}일차] 특별 생존 규칙 없음. 통과.");
                 return true;
             }
 
-            Debug.Log($"<color=orange>[{dayCount}일차] 생존 규칙 '{currentDayRule.name}' 검사를 시작합니다...</color>");
+            CoreLogger.Log($"<color=orange>[{dayCount}일차] 생존 규칙 '{currentDayRule.name}' 검사를 시작합니다...</color>");
             foreach (var condition in currentDayRule.survivalConditions)
             {
                 if (!EvaluateCondition(condition))
                 {
-                    Debug.Log($"<color=red>생존 실패: 조건 '{condition.description}'을(를) 만족하지 못했습니다.</color>");
+                    CoreLogger.Log($"<color=red>생존 실패: 조건 '{condition.description}'을(를) 만족하지 못했습니다.</color>");
                     return false;
                 }
             }
-            Debug.Log($"<color=green>생존 성공: 모든 조건을 만족했습니다.</color>");
+            CoreLogger.Log($"<color=green>생존 성공: 모든 조건을 만족했습니다.</color>");
             return true;
         }
 
         private void HandleGameOver()
         {
-            Debug.LogError("========= GAME OVER ==========");
+            CoreLogger.LogError("========= GAME OVER ==========");
         }
 
         public bool EvaluateCondition(ConditionData condition)
         {
             if (condition == null)
             {
-                Debug.LogWarning("평가하려는 ConditionData가 null입니다.");
+                CoreLogger.LogWarning("평가하려는 ConditionData가 null입니다.");
                 return false;
             }
             return condition.Evaluate();
@@ -142,7 +143,7 @@ namespace Core
                 if (data != null && data.Count > 0)
                 {
                     dayCount = Convert.ToInt32((object)data[0]["CurrentDay"]);
-                    Debug.Log($"<color=yellow>저장된 데이터 로드: {dayCount}일차에서 시작합니다.</color>");
+                    CoreLogger.Log($"<color=yellow>저장된 데이터 로드: {dayCount}일차에서 시작합니다.</color>");
                 }
             }
         }
@@ -161,7 +162,7 @@ namespace Core
             // 주입받은 PlayerService 사용
             _playerService.SavePlayerData();
 
-            Debug.Log($"<color=orange>게임 진행 상황 저장 완료: {dayCount}일차</color>");
+            CoreLogger.Log($"<color=orange>게임 진행 상황 저장 완료: {dayCount}일차</color>");
         }
 
 

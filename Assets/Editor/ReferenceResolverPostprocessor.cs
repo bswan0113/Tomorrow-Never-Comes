@@ -3,6 +3,7 @@ using UnityEditor;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Core.Logging;
 
 public class ReferenceResolverPostprocessor : AssetPostprocessor
 {
@@ -15,7 +16,7 @@ public class ReferenceResolverPostprocessor : AssetPostprocessor
             return;
         }
 
-        Debug.Log("<color=orange>Starting reference resolving process because .tncd files were imported.</color>");
+        CoreLogger.Log("<color=orange>Starting reference resolving process because .tncd files were imported.</color>");
 
         // --- 올바르게 수정된 캐시 생성 로직 ---
         var gameDataCache = new Dictionary<string, GameData>();
@@ -43,7 +44,7 @@ public class ReferenceResolverPostprocessor : AssetPostprocessor
                 }
             }
         }
-        Debug.Log($"<color=orange>GameData cache built successfully with {gameDataCache.Count} entries.</color>");
+        CoreLogger.Log($"<color=orange>GameData cache built successfully with {gameDataCache.Count} entries.</color>");
         // --- 캐시 생성 로직 종료 ---
 
 
@@ -61,7 +62,7 @@ public class ReferenceResolverPostprocessor : AssetPostprocessor
                     continue;
                 }
 
-                Debug.Log($"<color=yellow>Resolving {container.pendingReferences.Count} pending references for: {path}</color>");
+                CoreLogger.Log($"<color=yellow>Resolving {container.pendingReferences.Count} pending references for: {path}</color>");
 
                 foreach (var pending in container.pendingReferences)
                 {
@@ -84,7 +85,7 @@ public class ReferenceResolverPostprocessor : AssetPostprocessor
                         }
                         else
                         {
-                            Debug.LogWarning($"Could not find GameData with ID '{id}' to link in '{pending.targetObject.name}'.", pending.targetObject);
+                            CoreLogger.LogWarning($"Could not find GameData with ID '{id}' to link in '{pending.targetObject.name}'.", pending.targetObject);
                             list.Add(null);
                         }
                     }
@@ -102,7 +103,7 @@ public class ReferenceResolverPostprocessor : AssetPostprocessor
         if (needsReSave)
         {
             AssetDatabase.SaveAssets();
-            Debug.Log("<color=green>--- All references resolved and assets saved. ---</color>");
+            CoreLogger.Log("<color=green>--- All references resolved and assets saved. ---</color>");
         }
     }
 }

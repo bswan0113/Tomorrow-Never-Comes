@@ -3,6 +3,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Core.Interface;
+using Core.Logging;
 using UnityEngine;
 
 namespace Core.Resource
@@ -18,7 +19,7 @@ namespace Core.Resource
         public void Initialize()
         {
             LoadAllGameData();
-            Debug.Log("GameResourceManager Initialized and Data Loaded.");
+            CoreLogger.Log("GameResourceManager Initialized and Data Loaded.");
         }
 
         private void LoadAllGameData()
@@ -45,12 +46,12 @@ namespace Core.Resource
             {
                 foreach (var duplicateId in duplicates)
                 {
-                    Debug.LogError($"[GameResourceManager] 중복된 ID({duplicateId})가 존재합니다! CSV 파일을 확인해주세요.");
+                    CoreLogger.LogError($"[GameResourceManager] 중복된 ID({duplicateId})가 존재합니다! CSV 파일을 확인해주세요.");
                 }
             }
 
             gameDatabase = allData.ToDictionary(data => data.id, data => data);
-            Debug.Log($"<color=cyan>{gameDatabase.Count}개의 게임 데이터를 로드했습니다.</color>");
+            CoreLogger.Log($"<color=cyan>{gameDatabase.Count}개의 게임 데이터를 로드했습니다.</color>");
         }
 
         /// <summary>
@@ -60,7 +61,7 @@ namespace Core.Resource
         {
             if (gameDatabase == null)
             {
-                Debug.LogError("GameResourceManager: gameDatabase가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
+                CoreLogger.LogError("GameResourceManager: gameDatabase가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
                 return null;
             }
 
@@ -72,12 +73,12 @@ namespace Core.Resource
                 }
                 else
                 {
-                    Debug.LogWarning($"ID '{id}'의 데이터는 존재하지만, 요청한 타입({typeof(T)})이 아닙니다. 실제 타입: {data.GetType()}");
+                    CoreLogger.LogWarning($"ID '{id}'의 데이터는 존재하지만, 요청한 타입({typeof(T)})이 아닙니다. 실제 타입: {data.GetType()}");
                     return null;
                 }
             }
 
-            Debug.LogWarning($"요청한 ID '{id}'를 가진 데이터를 찾을 수 없습니다!");
+            CoreLogger.LogWarning($"요청한 ID '{id}'를 가진 데이터를 찾을 수 없습니다!");
             return null;
         }
 
@@ -86,7 +87,7 @@ namespace Core.Resource
         {
             if (gameDatabase == null)
             {
-                Debug.LogError("GameResourceManager: gameDatabase가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
+                CoreLogger.LogError("GameResourceManager: gameDatabase가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
                 return new T[0]; // 빈 배열 반환
             }
             return gameDatabase.Values.OfType<T>().ToArray(); // List에서 Array로 반환 타입 변경 (인터페이스에 따라)

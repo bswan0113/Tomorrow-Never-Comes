@@ -1,5 +1,6 @@
 
 using Core.Data.Interface;
+using Core.Logging;
 
 namespace Features.Player
 {
@@ -42,7 +43,7 @@ public class PlayerStatsSerializer : IDataSerializer<PlayerStatsData>
     {
         if (dataMap == null || dataMap.Count == 0)
         {
-            UnityEngine.Debug.LogWarning("[PlayerStatsSerializer] Data map is null or empty, returning null PlayerStatsData.");
+            CoreLogger.LogWarning("[PlayerStatsSerializer] Data map is null or empty, returning null PlayerStatsData.");
             return null;
         }
 
@@ -62,17 +63,17 @@ public class PlayerStatsSerializer : IDataSerializer<PlayerStatsData>
         }
         catch (KeyNotFoundException ex)
         {
-            UnityEngine.Debug.LogError($"[PlayerStatsSerializer] Missing key in data map during deserialization: {ex.Message}");
+            CoreLogger.LogError($"[PlayerStatsSerializer] Missing key in data map during deserialization: {ex.Message}");
             return null;
         }
         catch (InvalidCastException ex)
         {
-            UnityEngine.Debug.LogError($"[PlayerStatsSerializer] Type cast error during deserialization: {ex.Message}");
+            CoreLogger.LogError($"[PlayerStatsSerializer] Type cast error during deserialization: {ex.Message}");
             return null;
         }
         catch (Exception ex)
         {
-            UnityEngine.Debug.LogError($"[PlayerStatsSerializer] Unexpected error during deserialization: {ex.Message}");
+            CoreLogger.LogError($"[PlayerStatsSerializer] Unexpected error during deserialization: {ex.Message}");
             return null;
         }
     }

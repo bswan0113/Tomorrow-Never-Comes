@@ -7,6 +7,8 @@ using System;
 using System.Data; // IsolationLevel, ConnectionState를 위해 추가
 using Core.Data.Interface; // IDatabaseAccess를 사용하기 위해 추가
 using System.Threading;
+using Core.Logging;
+
 namespace Core.Data.Impl
 {
     public class DatabaseAccess : IDatabaseAccess
@@ -27,7 +29,7 @@ namespace Core.Data.Impl
             }
             _schemaManager = schemaManager ?? throw new ArgumentNullException(nameof(schemaManager)); // SchemaManager 주입
             m_ConnectionString = "URI=file:" + dbPath;
-            Debug.Log($"[DatabaseAccess] Initialized with path: {dbPath}");
+            CoreLogger.Log($"[DatabaseAccess] Initialized with path: {dbPath}");
         }
 
         // --- 연결 관리 ---
@@ -38,7 +40,7 @@ namespace Core.Data.Impl
             {
                 if (m_Connection != null && m_Connection.State == ConnectionState.Open)
                 {
-                    Debug.Log("[DatabaseAccess] Connection already open. State: " + m_Connection.State);
+                    CoreLogger.Log("[DatabaseAccess] Connection already open. State: " + m_Connection.State);
                     return true;
                 }
 
@@ -47,7 +49,7 @@ namespace Core.Data.Impl
                     m_Connection = new SqliteConnection(m_ConnectionString);
                 }
                 m_Connection.Open();
-                Debug.Log("[DatabaseAccess] Database connection opened successfully.");
+                CoreLogger.Log("[DatabaseAccess] Database connection opened successfully.");
                 return true;
             }, "opening database connection");
         }
@@ -58,13 +60,13 @@ namespace Core.Data.Impl
             {
                 if (_isInTransaction)
                 {
-                    Debug.LogWarning("[DatabaseAccess] Closing connection while a transaction is active. Transaction will be rolled back.");
+                    CoreLogger.LogWarning("[DatabaseAccess] Closing connection while a transaction is active. Transaction will be rolled back.");
                     RollbackTransaction(); // 활성 트랜잭션이 있다면 롤백 후 연결 종료
                 }
                 m_Connection.Close();
                 m_Connection.Dispose();
                 m_Connection = null;
-                Debug.Log("[DatabaseAccess] Connection closed.");
+                CoreLogger.Log("[DatabaseAccess] Connection closed.");
             }
         }
 
@@ -82,7 +84,7 @@ namespace Core.Data.Impl
             ExecuteWithRetry(() =>
             {
                 m_Transaction = m_Connection.BeginTransaction(isolationLevel);
-                Debug.Log($"[DatabaseAccess] Transaction started with IsolationLevel: {isolationLevel}");
+                CoreLogger.Log($"[DatabaseAccess] Transaction started with IsolationLevel: {isolationLevel}");
                 return true;
             }, "beginning transaction", false);
         }
@@ -96,11 +98,11 @@ namespace Core.Data.Impl
             try
             {
                 m_Transaction.Commit();
-                Debug.Log("[DatabaseAccess] Transaction committed.");
+                CoreLogger.Log("[DatabaseAccess] Transaction committed.");
             }
             catch (SqliteException ex)
             {
-                Debug.LogError($"[DatabaseAccess] Error committing transaction: {ex.Message}");
+                CoreLogger.LogError($"[DatabaseAccess] Error committing transaction: {ex.Message}");
                 // 커밋 실패 시 롤백 시도하여 일관성 유지
                 RollbackTransaction();
                 throw new InvalidOperationException("Error during transaction commit.", ex);
@@ -108,7 +110,7 @@ namespace Core.Data.Impl
             ExecuteWithRetry(() =>
             {
                 m_Transaction.Commit();
-                Debug.Log("[DatabaseAccess] Transaction committed successfully.");
+                CoreLogger.Log("[DatabaseAccess] Transaction committed successfully.");
                 return true;
             }, "committing transaction");
             _isInTransaction = false; // 트랜잭션 종료 시 상태 업데이트
@@ -125,11 +127,11 @@ namespace Core.Data.Impl
             try
             {
                 m_Transaction.Rollback();
-                Debug.Log("[DatabaseAccess] Transaction rolled back.");
+                CoreLogger.Log("[DatabaseAccess] Transaction rolled back.");
             }
             catch (SqliteException ex)
             {
-                Debug.LogError($"[DatabaseAccess] Error rolling back transaction: {ex.Message}");
+                CoreLogger.LogError($"[DatabaseAccess] Error rolling back transaction: {ex.Message}");
                 throw new InvalidOperationException("Error during transaction rollback.", ex);
             }
             finally
@@ -181,7 +183,7 @@ namespace Core.Data.Impl
             // P18: SQL 화이트리스트/enum 매핑 부재 (SchemaManager로 완전 해결)
             if (!_schemaManager.IsTableNameValid(tableName))
             {
-                Debug.LogError($"[DatabaseAccess] Attempted to access an unallowed or invalid table: '{tableName}'. Check SchemaManager configuration.");
+                CoreLogger.LogError($"[DatabaseAccess] Attempted to access an unallowed or invalid table: '{tableName}'. Check SchemaManager configuration.");
                 throw new ArgumentException($"[DatabaseAccess] Access to table '{tableName}' is not allowed or it does not exist in schema.");
             }
         }
@@ -199,7 +201,7 @@ namespace Core.Data.Impl
                 }
                 if (!_schemaManager.IsColumnNameValid(tableName, colName))
                 {
-                    Debug.LogError($"[DatabaseAccess] Invalid or potentially malicious column name detected: '{colName}' for table '{tableName}'. Check SchemaManager configuration.");
+                    CoreLogger.LogError($"[DatabaseAccess] Invalid or potentially malicious column name detected: '{colName}' for table '{tableName}'. Check SchemaManager configuration.");
                     throw new ArgumentException($"[DatabaseAccess] Invalid column name '{colName}' for table '{tableName}'.");
                 }
             }
@@ -265,7 +267,7 @@ namespace Core.Data.Impl
                 parameters[paramName] = values[i];
             }
 
-            Debug.Log($"[DatabaseAccess] Executing SelectWhere: {query}");
+            CoreLogger.Log($"[DatabaseAccess] Executing SelectWhere: {query}");
             return ExecuteQueryInternal(query, parameters);
         }
 
@@ -302,7 +304,7 @@ namespace Core.Data.Impl
                 parameters[parameterNames[i]] = values[i];
             }
 
-            Debug.Log($"[DatabaseAccess] Executing InsertInto on {tableName}");
+            CoreLogger.Log($"[DatabaseAccess] Executing InsertInto on {tableName}");
             ExecuteNonQuery(query, parameters);
         }
 
@@ -338,7 +340,7 @@ namespace Core.Data.Impl
             query += $" WHERE {whereCol} = @whereValue";
             parameters["@whereValue"] = whereValue;
 
-            Debug.Log($"[DatabaseAccess] Executing UpdateSet on {tableName}");
+            CoreLogger.Log($"[DatabaseAccess] Executing UpdateSet on {tableName}");
             ExecuteNonQuery(query, parameters);
         }
 
@@ -348,7 +350,7 @@ namespace Core.Data.Impl
             ValidateTableName(tableName);
 
             string query = $"DELETE FROM {tableName}";
-            Debug.Log($"[DatabaseAccess] Executing DeleteContents on {tableName}");
+            CoreLogger.Log($"[DatabaseAccess] Executing DeleteContents on {tableName}");
             ExecuteNonQuery(query);
         }
 
@@ -365,7 +367,7 @@ namespace Core.Data.Impl
             {
                 { "@whereValue", whereValue }
             };
-            Debug.Log($"[DatabaseAccess] Executing DeleteWhere on {tableName}");
+            CoreLogger.Log($"[DatabaseAccess] Executing DeleteWhere on {tableName}");
             ExecuteNonQuery(query, parameters);
         }
 
@@ -386,7 +388,7 @@ namespace Core.Data.Impl
                     using (var command = CreateCommand(query, parameters))
                     {
                         int rowsAffected = command.ExecuteNonQuery();
-                        Debug.Log($"[DatabaseAccess] Executed NonQuery: '{query}'. Rows affected: {rowsAffected}");
+                        CoreLogger.Log($"[DatabaseAccess] Executed NonQuery: '{query}'. Rows affected: {rowsAffected}");
                         return rowsAffected;
                     }
                 }, $"executing non-query '{query}'");
@@ -418,7 +420,7 @@ namespace Core.Data.Impl
             {
                 if (i > 0)
                 {
-                    Debug.LogWarning($"[DatabaseAccess] Retrying {operationName} (Attempt {i + 1}/{MAX_RETRY_ATTEMPTS})...");
+                    CoreLogger.LogWarning($"[DatabaseAccess] Retrying {operationName} (Attempt {i + 1}/{MAX_RETRY_ATTEMPTS})...");
                     Thread.Sleep(RETRY_DELAY_MS);
                 }
                 return action();
@@ -427,25 +429,25 @@ namespace Core.Data.Impl
             {
                 if (i < MAX_RETRY_ATTEMPTS - 1)
                 {
-                    Debug.LogWarning($"[DatabaseAccess] Transient error during {operationName}: {ex.Message}. Will retry.");
+                    CoreLogger.LogWarning($"[DatabaseAccess] Transient error during {operationName}: {ex.Message}. Will retry.");
                     if (IsInTransaction && shouldRetryTransaction)
                     {
-                        Debug.LogWarning($"[DatabaseAccess] Rolling back current transaction before retry for {operationName}.");
+                        CoreLogger.LogWarning($"[DatabaseAccess] Rolling back current transaction before retry for {operationName}.");
                         RollbackTransaction();
                     }
                     continue;
                 }
-                Debug.LogError($"[DatabaseAccess] Failed to {operationName} after {MAX_RETRY_ATTEMPTS} attempts: {ex.Message}");
+                CoreLogger.LogError($"[DatabaseAccess] Failed to {operationName} after {MAX_RETRY_ATTEMPTS} attempts: {ex.Message}");
                 throw;
             }
             catch (InvalidOperationException ex)
             {
-                Debug.LogError($"[DatabaseAccess] Non-retryable error during {operationName}: {ex.Message}");
+                CoreLogger.LogError($"[DatabaseAccess] Non-retryable error during {operationName}: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[DatabaseAccess] Unexpected error during {operationName}: {ex.Message}");
+                CoreLogger.LogError($"[DatabaseAccess] Unexpected error during {operationName}: {ex.Message}");
                 throw;
             }
         }

@@ -11,6 +11,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using Core.Data;
 using Core.Data.Interface;
+using Core.Logging;
 using Core.Util;
 using Features.Data;
 using Features.Player;
@@ -43,7 +44,7 @@ public class DataManager : MonoBehaviour, IDataService
         if (m_DataSerializers == null)
         {
             m_DataSerializers = new Dictionary<Type, IBaseDataSerializer>();
-            Debug.LogWarning("[DataManager] m_DataSerializers was null upon Initialize, forced re-initialization. Check MonoBehaviour lifecycle and VContainer setup.");
+            CoreLogger.LogWarning("[DataManager] m_DataSerializers was null upon Initialize, forced re-initialization. Check MonoBehaviour lifecycle and VContainer setup.");
         }
 
         _dbAccess = dbAccess ?? throw new ArgumentNullException(nameof(dbAccess));
@@ -55,7 +56,7 @@ public class DataManager : MonoBehaviour, IDataService
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[DataManager] FATAL ERROR: Failed to open database connection during initialization: {ex.Message}");
+            CoreLogger.LogError($"[DataManager] FATAL ERROR: Failed to open database connection during initialization: {ex.Message}");
             throw;
         }
 
@@ -65,7 +66,7 @@ public class DataManager : MonoBehaviour, IDataService
         RegisterSerializer<GameProgressData>(new GameProgressSerializer());
         LoadAllGameData();
 
-        Debug.Log("[DataManager] DataManager Initialized successfully.");
+        CoreLogger.Log("[DataManager] DataManager Initialized successfully.");
     }
 
     private void RegisterSerializer<T>(IDataSerializer<T> serializer) where T : class
@@ -74,7 +75,7 @@ public class DataManager : MonoBehaviour, IDataService
         Type dataType = typeof(T);
         if (m_DataSerializers.ContainsKey(dataType))
         {
-            Debug.LogWarning($"[DataManager] Serializer for type {dataType.Name} already registered. Overwriting.");
+            CoreLogger.LogWarning($"[DataManager] Serializer for type {dataType.Name} already registered. Overwriting.");
             m_DataSerializers[dataType] = serializer;
         }
         else
@@ -98,14 +99,14 @@ public class DataManager : MonoBehaviour, IDataService
     {
         if (pauseStatus)
         {
-            Debug.Log("[DataManager] OnApplicationPause: App going to background. Closing DB connection.");
+            CoreLogger.Log("[DataManager] OnApplicationPause: App going to background. Closing DB connection.");
             // 앱이 백그라운드로 갈 때 데이터베이스 연결을 닫습니다.
             // 트랜잭션이 남아있을 경우 롤백 처리됩니다.
             _dbAccess?.CloseConnection();
         }
         else
         {
-            Debug.Log("[DataManager] OnApplicationPause: App coming to foreground. Opening DB connection.");
+            CoreLogger.Log("[DataManager] OnApplicationPause: App coming to foreground. Opening DB connection.");
             // 앱이 포그라운드로 돌아올 때 데이터베이스 연결을 다시 엽니다.
             try
             {
@@ -113,7 +114,7 @@ public class DataManager : MonoBehaviour, IDataService
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[DataManager] Failed to re-open database connection on app resume: {ex.Message}");
+                CoreLogger.LogError($"[DataManager] Failed to re-open database connection on app resume: {ex.Message}");
                 // 연결 재개 실패는 심각하므로, 사용자에게 알리거나 게임을 다시 시작하게 해야 합니다.
                 // TODO: UI에 오류 메시지 표시 또는 강제 종료 로직 추가
             }
@@ -124,7 +125,7 @@ public class DataManager : MonoBehaviour, IDataService
     {
         // P12: OnApplicationPause/Focus 처리 미흡 - 오브젝트 파괴 시 연결 닫기
         // 게임 종료 시 확실하게 연결을 닫고 자원을 해제합니다.
-        Debug.Log("[DataManager] OnDestroy: Closing DB connection.");
+        CoreLogger.Log("[DataManager] OnDestroy: Closing DB connection.");
         _dbAccess?.CloseConnection();
     }
 
@@ -137,12 +138,12 @@ public class DataManager : MonoBehaviour, IDataService
         TextAsset sqlJson = Resources.Load<TextAsset>("SQLSchemas");
         if (sqlJson == null)
         {
-            Debug.LogError("[DataManager] Resources/SQLSchemas.json file not found! Database tables might not be initialized correctly.");
+            CoreLogger.LogError("[DataManager] Resources/SQLSchemas.json file not found! Database tables might not be initialized correctly.");
             m_SQLQueries = new Dictionary<string, string>();
             return;
         }
         m_SQLQueries = JsonConvert.DeserializeObject<Dictionary<string, string>>(sqlJson.text);
-        Debug.Log($"[DataManager] Loaded {m_SQLQueries.Count} SQL schema queries.");
+        CoreLogger.Log($"[DataManager] Loaded {m_SQLQueries.Count} SQL schema queries.");
     }
 
    // --- START OF FILE DataManager.cs (부분 수정) ---
@@ -152,12 +153,12 @@ public class DataManager : MonoBehaviour, IDataService
     {
         if (_dbAccess == null)
         {
-            Debug.LogError("[DataManager] DatabaseAccess is not initialized. Call Initialize() first.");
+            CoreLogger.LogError("[DataManager] DatabaseAccess is not initialized. Call Initialize() first.");
             return;
         }
         if (_schemaManager == null)
         {
-            Debug.LogError("[DataManager] SchemaManager is not initialized. Call Initialize() first.");
+            CoreLogger.LogError("[DataManager] SchemaManager is not initialized. Call Initialize() first.");
             return;
         }
 
@@ -167,7 +168,7 @@ public class DataManager : MonoBehaviour, IDataService
             {
                 if (string.IsNullOrWhiteSpace(query))
                 {
-                    Debug.LogWarning("[DataManager] Skipping null or empty schema query from SchemaManager.");
+                    CoreLogger.LogWarning("[DataManager] Skipping null or empty schema query from SchemaManager.");
                     continue;
                 }
 
@@ -183,13 +184,13 @@ public class DataManager : MonoBehaviour, IDataService
                 {
                     tableNameForLog = match.Groups["TableName"].Value;
                 }
-                Debug.Log($"[DataManager] Executed table creation query for: {tableNameForLog}");
+                CoreLogger.Log($"[DataManager] Executed table creation query for: {tableNameForLog}");
             }
-            Debug.Log("[DataManager] Database tables are verified using SchemaManager schemas.");
+            CoreLogger.Log("[DataManager] Database tables are verified using SchemaManager schemas.");
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[DataManager] Error initializing database tables: {ex.Message}");
+            CoreLogger.LogError($"[DataManager] Error initializing database tables: {ex.Message}");
             throw new InvalidOperationException("Failed to initialize database tables.", ex);
         }
     }
@@ -199,14 +200,14 @@ public class DataManager : MonoBehaviour, IDataService
     {
         if (_dbAccess == null)
         {
-            Debug.LogError("[DataManager] DatabaseAccess is not initialized.");
+            CoreLogger.LogError("[DataManager] DatabaseAccess is not initialized.");
             return;
         }
 
         try
         {
             // P28: 로깅 부족 (로딩) - 로깅 강화
-            Debug.Log("[DataManager] Attempting to load all game data to check save state...");
+            CoreLogger.Log("[DataManager] Attempting to load all game data to check save state...");
 
             // 플레이어 스탯 데이터를 로드하여 저장 데이터 존재 여부 확인
             var playerStatsSerializer = GetSerializer<PlayerStatsData>();
@@ -221,12 +222,12 @@ public class DataManager : MonoBehaviour, IDataService
 
             if (HasSaveData)
             {
-                Debug.Log("[DataManager] Save data found. HasSaveData = true.");
+                CoreLogger.Log("[DataManager] Save data found. HasSaveData = true.");
                 // 실제 게임 데이터 객체 로딩 및 상태 업데이트
                 var playerStats = playerStatsSerializer.Deserialize(loadedPlayerStatsMap.FirstOrDefault());
                 if (playerStats != null)
                 {
-                    Debug.Log($"[DataManager] Loaded PlayerStats: SaveSlotId={playerStats.SaveSlotID}");
+                    CoreLogger.Log($"[DataManager] Loaded PlayerStats: SaveSlotId={playerStats.SaveSlotID}");
                     // TODO: GameManager/PlayerManager 등에 로드된 데이터 전달
                 }
 
@@ -240,18 +241,18 @@ public class DataManager : MonoBehaviour, IDataService
                 var gameProgress = gameProgressSerializer.Deserialize(loadedGameProgressMap.FirstOrDefault());
                 if (gameProgress != null)
                 {
-                    Debug.Log($"[DataManager] Loaded GameProgress: CurrentDay={gameProgress.CurrentDay}, LastScene={gameProgress.LastSceneName}");
+                    CoreLogger.Log($"[DataManager] Loaded GameProgress: CurrentDay={gameProgress.CurrentDay}, LastScene={gameProgress.LastSceneName}");
                     // TODO: GameManager/GameFlowManager 등에 로드된 데이터 전달
                 }
             }
             else
             {
-                Debug.Log("[DataManager] No save data found. HasSaveData = false.");
+                CoreLogger.Log("[DataManager] No save data found. HasSaveData = false.");
             }
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[DataManager] Error during LoadAllGameData: {ex.Message}");
+            CoreLogger.LogError($"[DataManager] Error during LoadAllGameData: {ex.Message}");
             HasSaveData = false; // 로딩 실패 시 저장 데이터 없음으로 처리
         }
     }
@@ -266,7 +267,7 @@ public class DataManager : MonoBehaviour, IDataService
         var playerStatsToSave = new PlayerStatsData();
         var gameProgressToSave = new GameProgressData();
 
-        Debug.Log("[DataManager] Enqueuing SaveAllGameData request...");
+        CoreLogger.Log("[DataManager] Enqueuing SaveAllGameData request...");
         m_SaveQueue.Enqueue(async () => await PerformSaveOperation(playerStatsToSave, gameProgressToSave));
         ProcessSaveQueue(); // 큐 처리 시작 (이미 처리 중이면 아무것도 안함)
     }
@@ -275,7 +276,7 @@ public class DataManager : MonoBehaviour, IDataService
 {
     if (_dbAccess == null)
     {
-        Debug.LogError("[DataManager] FATAL ERROR: DatabaseAccess is null during save operation.");
+        CoreLogger.LogError("[DataManager] FATAL ERROR: DatabaseAccess is null during save operation.");
         return;
     }
 
@@ -297,12 +298,12 @@ public class DataManager : MonoBehaviour, IDataService
             if (existingPlayerStats != null && existingPlayerStats.Count > 0)
             {
                 _dbAccess.UpdateSet(psTableName, playerStatsMap.Keys.ToArray(), playerStatsMap.Values.ToArray(), psPrimaryKeyCol, psPrimaryKeyValue);
-                Debug.Log($"[DataManager] Updated PlayerStats for SaveSlotID {psPrimaryKeyValue}.");
+                CoreLogger.Log($"[DataManager] Updated PlayerStats for SaveSlotID {psPrimaryKeyValue}.");
             }
             else
             {
                 _dbAccess.InsertInto(psTableName, playerStatsMap.Keys.ToArray(), playerStatsMap.Values.ToArray());
-                Debug.Log($"[DataManager] Inserted new PlayerStats for SaveSlotID {psPrimaryKeyValue}.");
+                CoreLogger.Log($"[DataManager] Inserted new PlayerStats for SaveSlotID {psPrimaryKeyValue}.");
             }
 
             // 게임 진행 상황 저장
@@ -316,27 +317,27 @@ public class DataManager : MonoBehaviour, IDataService
             if (existingGameProgress != null && existingGameProgress.Count > 0)
             {
                 _dbAccess.UpdateSet(gpTableName, gameProgressMap.Keys.ToArray(), gameProgressMap.Values.ToArray(), gpPrimaryKeyCol, gpPrimaryKeyValue);
-                Debug.Log($"[DataManager] Updated GameProgress for SaveSlotID {gpPrimaryKeyValue}.");
+                CoreLogger.Log($"[DataManager] Updated GameProgress for SaveSlotID {gpPrimaryKeyValue}.");
             }
             else
             {
                 _dbAccess.InsertInto(gpTableName, gameProgressMap.Keys.ToArray(), gameProgressMap.Values.ToArray());
-                Debug.Log($"[DataManager] Inserted new GameProgress for SaveSlotID {gpPrimaryKeyValue}.");
+                CoreLogger.Log($"[DataManager] Inserted new GameProgress for SaveSlotID {gpPrimaryKeyValue}.");
             }
 
             _dbAccess.CommitTransaction(); // P10, P13: 트랜잭션 커밋
-            // P21: Unity의 Debug.Log는 메인 스레드에서만 안전하게 호출되므로,
+            // P21: Unity의 CoreLogger.Log는 메인 스레드에서만 안전하게 호출되므로,
             //       Task.Run() 블록 내부에서는 로깅을 피하는 것이 좋습니다.
             //       하지만 여기서는 디버그 목적으로 포함했습니다.
         });
 
         // P22: Task.Run()이 완료된 후 메인 스레드에서 상태를 업데이트하고 로그를 남깁니다.
         HasSaveData = true;
-        Debug.Log("[DataManager] All game data saved successfully via transaction.");
+        CoreLogger.Log("[DataManager] All game data saved successfully via transaction.");
     }
     catch (Exception ex)
     {
-        Debug.LogError($"[DataManager] Failed to save all game data: {ex.Message}. Rolling back transaction.");
+        CoreLogger.LogError($"[DataManager] Failed to save all game data: {ex.Message}. Rolling back transaction.");
         // P23: Task.Run() 내부에서 발생하는 예외는 자동으로 바깥 try-catch 블록으로 전달됩니다.
         _dbAccess.RollbackTransaction(); // 오류 발생 시 롤백
         throw; // 예외를 다시 던져 상위 호출자가 알 수 있도록 합니다.
@@ -351,7 +352,7 @@ public class DataManager : MonoBehaviour, IDataService
         }
 
         m_IsProcessingSaveQueue = true;
-        Debug.Log("[DataManager] Starting to process save queue...");
+        CoreLogger.Log("[DataManager] Starting to process save queue...");
 
         while (m_SaveQueue.TryDequeue(out Func<Task> saveOperation))
         {
@@ -361,13 +362,13 @@ public class DataManager : MonoBehaviour, IDataService
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[DataManager] Error processing save queue item: {ex.Message}. Remaining items in queue: {m_SaveQueue.Count}");
+                CoreLogger.LogError($"[DataManager] Error processing save queue item: {ex.Message}. Remaining items in queue: {m_SaveQueue.Count}");
                 // TODO: 오류 발생 시 사용자에게 알리거나, 재시도 로직 구현 (P11: 재시도 로직 부재)
             }
         }
 
         m_IsProcessingSaveQueue = false;
-        Debug.Log("[DataManager] Save queue processing finished.");
+        CoreLogger.Log("[DataManager] Save queue processing finished.");
     }
 
 
@@ -383,10 +384,10 @@ public class DataManager : MonoBehaviour, IDataService
     {
         if (_dbAccess == null)
         {
-            Debug.LogError("[DataManager] DatabaseAccess is not initialized for LoadData.");
+            CoreLogger.LogError("[DataManager] DatabaseAccess is not initialized for LoadData.");
             return null;
         }
-        Debug.Log($"[DataManager] Loading data from {tableName} where {whereCol} = {whereValue}.");
+        CoreLogger.Log($"[DataManager] Loading data from {tableName} where {whereCol} = {whereValue}.");
         return _dbAccess.SelectWhere(tableName, new string[] { whereCol }, new string[] { "=" }, new object[] { whereValue });
     }
 
@@ -394,10 +395,10 @@ public class DataManager : MonoBehaviour, IDataService
     {
         if (_dbAccess == null)
         {
-            Debug.LogError("[DataManager] DatabaseAccess is not initialized for SaveData.");
+            CoreLogger.LogError("[DataManager] DatabaseAccess is not initialized for SaveData.");
             return;
         }
-        Debug.Log($"[DataManager] Saving data to {tableName}.");
+        CoreLogger.Log($"[DataManager] Saving data to {tableName}.");
         // 이 SaveData는 IDataService의 일부이지만, 실제로는 PerformSaveOperation과 같은
         // 트랜잭션 기반 메서드를 사용하는 것이 더 안전합니다.
         // 단일 Insert 작업만 수행합니다.
@@ -408,10 +409,10 @@ public class DataManager : MonoBehaviour, IDataService
     {
         if (_dbAccess == null)
         {
-            Debug.LogError("[DataManager] DatabaseAccess is not initialized for UpdateData.");
+            CoreLogger.LogError("[DataManager] DatabaseAccess is not initialized for UpdateData.");
             return;
         }
-        Debug.Log($"[DataManager] Updating data in {tableName} where {whereCol} = {whereValue}.");
+        CoreLogger.Log($"[DataManager] Updating data in {tableName} where {whereCol} = {whereValue}.");
         // 단일 Update 작업만 수행합니다.
         _dbAccess.UpdateSet(tableName, updateCols, updateValues, whereCol, whereValue);
     }
@@ -420,10 +421,10 @@ public class DataManager : MonoBehaviour, IDataService
     {
         if (_dbAccess == null)
         {
-            Debug.LogError("[DataManager] DatabaseAccess is not initialized for DeleteData.");
+            CoreLogger.LogError("[DataManager] DatabaseAccess is not initialized for DeleteData.");
             return;
         }
-        Debug.Log($"[DataManager] Deleting data from {tableName} where {whereCol} = {whereValue}.");
+        CoreLogger.Log($"[DataManager] Deleting data from {tableName} where {whereCol} = {whereValue}.");
         _dbAccess.DeleteWhere(tableName, whereCol, whereValue);
     }
 }
