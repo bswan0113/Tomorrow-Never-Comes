@@ -6,7 +6,9 @@ using System.Reflection;
 using Core.Logging;
 using System;
 using System.Collections.Generic;
-using System.IO; // Type.GetType을 위해 추가
+using System.IO;
+using ScriptableObjects.Abstract;
+using ScriptableObjects.Util; // Type.GetType을 위해 추가
 
 public class ReferenceResolverPostprocessor : AssetPostprocessor
 {

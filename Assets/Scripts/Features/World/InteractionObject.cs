@@ -3,6 +3,7 @@
 using System.Collections.Generic;
 using Core.Interface;
 using Core.Logging;
+using ScriptableObjects.Data;
 using UnityEngine;
 using VContainer;
 

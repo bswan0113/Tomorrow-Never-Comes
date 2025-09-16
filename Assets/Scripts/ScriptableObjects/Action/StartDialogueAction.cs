@@ -3,34 +3,39 @@
 using System.Collections;
 using Core.Interface;
 using Core.Logging;
+using ScriptableObjects.Abstract;
+using ScriptableObjects.Data;
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "New Dialogue Action", menuName = "Game Actions/Start Dialogue Action")]
-public class StartDialogueAction : BaseAction
+namespace ScriptableObjects.Action
 {
-    public DialogueData dialogueData;
-    public override bool IsValid(IGameActionContext context, out string reason)
+    [CreateAssetMenu(fileName = "New Dialogue Action", menuName = "Game Actions/Start Dialogue Action")]
+    public class StartDialogueAction : BaseAction
     {
-        if (context.gameService == null) // 예시: gameService가 필수인 경우
+        public DialogueData dialogueData;
+        public override bool IsValid(IGameActionContext context, out string reason)
         {
-            reason = "GameService가 컨텍스트에 없습니다.";
-            return false;
+            if (context.gameService == null) // 예시: gameService가 필수인 경우
+            {
+                reason = "GameService가 컨텍스트에 없습니다.";
+                return false;
+            }
+
+            reason = string.Empty;
+            return true;
         }
-
-        reason = string.Empty;
-        return true;
-    }
-    // 이 액션은 대화가 끝날 때까지 시퀀서를 '기다리게' 만들어야 합니다.
-    public override IEnumerator Execute(IGameActionContext context)
-    {
-
-        if (context == null || context.dialogueService == null)
+        // 이 액션은 대화가 끝날 때까지 시퀀서를 '기다리게' 만들어야 합니다.
+        public override IEnumerator Execute(IGameActionContext context)
         {
-            CoreLogger.LogError("AdvanceDayAction: IGameActionContext 또는 IGameService가 유효하지 않습니다!", this);
-            yield break;
-        }
 
-        context.dialogueService.StartDialogue(dialogueData);
-        yield return new WaitUntil(() => !context.dialogueService.IsDialogueActive());
+            if (context == null || context.dialogueService == null)
+            {
+                CoreLogger.LogError("AdvanceDayAction: IGameActionContext 또는 IGameService가 유효하지 않습니다!", this);
+                yield break;
+            }
+
+            context.dialogueService.StartDialogue(dialogueData);
+            yield return new WaitUntil(() => !context.dialogueService.IsDialogueActive());
+        }
     }
 }

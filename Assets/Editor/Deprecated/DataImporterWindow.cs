@@ -9,6 +9,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Core.Logging;
+using ScriptableObjects.Data;
 
 public class DataImporterWindow : EditorWindow
 {

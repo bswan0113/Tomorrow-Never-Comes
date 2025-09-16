@@ -34,6 +34,6 @@ namespace Core.Data.Interface
         /// </summary>
         /// <param name="saveSlotId">확인할 세이브 슬롯 ID.</param>
         /// <returns>데이터가 존재하면 true, 아니면 false.</returns>
-        bool HasPlayerStatsData(int saveSlotId);
+        Task<bool> HasPlayerStatsDataAsync(int saveSlotId);
     }
 }

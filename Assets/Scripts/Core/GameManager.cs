@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 using Core.Data.Interface;
 using Core.Interface;
 using Core.Logging;
-using Features.Data; // GameProgressData 사용을 위해 추가
+using Features.Data;
+using ScriptableObjects.Data; // GameProgressData 사용을 위해 추가
 using UnityEngine;
 using VContainer;
 

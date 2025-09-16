@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Linq;
 using System;
 using Features.Player;
+using ScriptableObjects.Conditions;
 
 [CustomEditor(typeof(StatCheckCondition))]
 public class StatCheckConditionEditor : Editor

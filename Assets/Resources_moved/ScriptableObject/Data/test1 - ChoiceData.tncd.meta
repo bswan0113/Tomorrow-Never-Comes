@@ -8,8 +8,8 @@ ScriptedImporter:
   assetBundleName: 
   assetBundleVariant: 
   script: {fileID: 11500000, guid: 5cbbe11a43f948f7923f731b15436f4e, type: 3}
-  targetTypeAssemblyQualifiedName: ChoiceData, Assembly-CSharp, Version=0.0.0.0,
-    Culture=neutral, PublicKeyToken=null
+  targetTypeAssemblyQualifiedName: ScriptableObjects.Data.ConditionData, Assembly-CSharp,
+    Version=0.0.0.0, Culture=neutral, PublicKeyToken=null
   strategy: 0
   groupedListField: 
   groupedListItemTypeAssemblyQualifiedName: 

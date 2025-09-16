@@ -1,4 +1,4 @@
-// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Core\Data\Impl\GameProgressRepository.cs
+// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Core\Data\Impl\GameProgressRepository.cs (REFACTORED)
 
 using Core.Data.Interface;
 using Core.Logging;
@@ -7,7 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Core.Util; // GameProgressSerializer가 이 네임스페이스에 있음
+// using Core.Util; // GameProgressSerializer의 실제 네임스페이스를 확인하고 필요에 따라 유지 또는 제거
 
 namespace Core.Data.Impl
 {
@@ -40,24 +40,22 @@ namespace Core.Data.Impl
         public async Task<GameProgressData> LoadGameProgressAsync(int saveSlotId)
         {
             CoreLogger.Log($"[GameProgressRepository] Loading GameProgressData for SaveSlotID: {saveSlotId}");
-            return await Task.Run(() =>
+
+            // DatabaseAccess의 SelectWhereAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+            var dataMaps = await _dbAccess.SelectWhereAsync(
+                _serializer.GetTableName(),
+                new string[] { _serializer.GetPrimaryKeyColumnName() },
+                new string[] { "=" },
+                new object[] { saveSlotId }
+            );
+
+            if (dataMaps == null || !dataMaps.Any())
             {
-                // P20: await Task.Run()을 사용하여 모든 데이터베이스 작업을 백그라운드 스레드에서 실행
-                var dataMaps = _dbAccess.SelectWhere(
-                    _serializer.GetTableName(),
-                    new string[] { _serializer.GetPrimaryKeyColumnName() },
-                    new string[] { "=" },
-                    new object[] { saveSlotId }
-                );
+                CoreLogger.LogWarning($"[GameProgressRepository] No GameProgressData found for SaveSlotID: {saveSlotId}");
+                return null;
+            }
 
-                if (dataMaps == null || !dataMaps.Any())
-                {
-                    CoreLogger.LogWarning($"[GameProgressRepository] No GameProgressData found for SaveSlotID: {saveSlotId}");
-                    return null;
-                }
-
-                return _serializer.Deserialize(dataMaps.First());
-            });
+            return _serializer.Deserialize(dataMaps.First());
         }
 
         public async Task SaveGameProgressAsync(GameProgressData data)
@@ -69,62 +67,60 @@ namespace Core.Data.Impl
             }
 
             CoreLogger.Log($"[GameProgressRepository] Saving GameProgressData for SaveSlotID: {data.SaveSlotID}");
-            await Task.Run(() =>
+
+            var dataMap = _serializer.Serialize(data);
+            string tableName = _serializer.GetTableName();
+            string primaryKeyCol = _serializer.GetPrimaryKeyColumnName();
+            object primaryKeyValue = data.SaveSlotID;
+
+            // DatabaseAccess의 SelectWhereAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+            var existingData = await _dbAccess.SelectWhereAsync(
+                tableName,
+                new string[] { primaryKeyCol },
+                new string[] { "=" },
+                new object[] { primaryKeyValue }
+            );
+
+            if (existingData != null && existingData.Any()) // 기존 데이터 존재 여부 확인
             {
-                var dataMap = _serializer.Serialize(data);
-                string tableName = _serializer.GetTableName();
-                string primaryKeyCol = _serializer.GetPrimaryKeyColumnName();
-                object primaryKeyValue = data.SaveSlotID; // GameProgressData 객체에서 직접 SaveSlotID를 가져옴
-
-                var existingData = _dbAccess.SelectWhere(
+                // DatabaseAccess의 UpdateSetAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+                await _dbAccess.UpdateSetAsync(
                     tableName,
-                    new string[] { primaryKeyCol },
-                    new string[] { "=" },
-                    new object[] { primaryKeyValue }
+                    dataMap.Keys.ToArray(),
+                    dataMap.Values.ToArray(),
+                    primaryKeyCol,
+                    primaryKeyValue
                 );
-
-                if (existingData != null && existingData.Count > 0)
-                {
-                    _dbAccess.UpdateSet(
-                        tableName,
-                        dataMap.Keys.ToArray(),
-                        dataMap.Values.ToArray(),
-                        primaryKeyCol,
-                        primaryKeyValue
-                    );
-                    CoreLogger.Log($"[GameProgressRepository] Updated GameProgressData for SaveSlotID: {primaryKeyValue}");
-                }
-                else
-                {
-                    _dbAccess.InsertInto(
-                        tableName,
-                        dataMap.Keys.ToArray(),
-                        dataMap.Values.ToArray()
-                    );
-                    CoreLogger.Log($"[GameProgressRepository] Inserted new GameProgressData for SaveSlotID: {primaryKeyValue}");
-                }
-            });
+                CoreLogger.Log($"[GameProgressRepository] Updated GameProgressData for SaveSlotID: {primaryKeyValue}");
+            }
+            else
+            {
+                // DatabaseAccess의 InsertIntoAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+                await _dbAccess.InsertIntoAsync(
+                    tableName,
+                    dataMap.Keys.ToArray(),
+                    dataMap.Values.ToArray()
+                );
+                CoreLogger.Log($"[GameProgressRepository] Inserted new GameProgressData for SaveSlotID: {primaryKeyValue}");
+            }
         }
 
         public async Task DeleteGameProgressAsync(int saveSlotId)
         {
             CoreLogger.Log($"[GameProgressRepository] Deleting GameProgressData for SaveSlotID: {saveSlotId}");
-            await Task.Run(() =>
-            {
-                _dbAccess.DeleteWhere(
-                    _serializer.GetTableName(),
-                    _serializer.GetPrimaryKeyColumnName(),
-                    saveSlotId
-                );
-            });
+            // DatabaseAccess의 DeleteWhereAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+            await _dbAccess.DeleteWhereAsync(
+                _serializer.GetTableName(),
+                _serializer.GetPrimaryKeyColumnName(),
+                saveSlotId
+            );
         }
 
-        public bool HasGameProgressData(int saveSlotId)
+        public async Task<bool> HasGameProgressDataAsync(int saveSlotId) // 메서드 이름 변경 및 async 추가
         {
             CoreLogger.Log($"[GameProgressRepository] Checking for GameProgressData for SaveSlotID: {saveSlotId}");
-            // 이 메서드는 빠르게 저장 데이터 유무만 확인하므로,
-            // 비동기 오버헤드 없이 동기적으로 실행합니다.
-            var dataMaps = _dbAccess.SelectWhere(
+            // DatabaseAccess의 SelectWhereAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+            var dataMaps = await _dbAccess.SelectWhereAsync(
                 _serializer.GetTableName(),
                 new string[] { _serializer.GetPrimaryKeyColumnName() },
                 new string[] { "=" },

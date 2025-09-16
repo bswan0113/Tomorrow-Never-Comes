@@ -14,6 +14,8 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using Core.Logging;
+using ScriptableObjects.Abstract;
+using ScriptableObjects.Util;
 
 /// <summary>
 /// CSV 파일을 기반으로 ScriptableObject 에셋들을 자동으로 생성하는 제네릭 임포터입니다.

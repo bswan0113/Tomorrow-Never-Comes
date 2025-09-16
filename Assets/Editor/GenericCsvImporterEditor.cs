@@ -10,6 +10,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using ScriptableObjects.Abstract;
 
 /// <summary>
 /// GenericCsvImporter의 인스펙터 UI를 대폭 개선합니다.

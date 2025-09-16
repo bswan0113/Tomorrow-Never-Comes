@@ -1,4 +1,5 @@
 using System;
+using ScriptableObjects.Data;
 
 namespace Core.Interface
 {

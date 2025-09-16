@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ScriptableObjects.Data;
 
 namespace Core.Interface
 {

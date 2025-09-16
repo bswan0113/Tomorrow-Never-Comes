@@ -1,6 +1,7 @@
 
 // Scripts/Core/Interface/IGameService.cs
-using System; // Action 이벤트를 위해 필요
+using System;
+using ScriptableObjects.Data; // Action 이벤트를 위해 필요
 
 namespace Core.Interface
 {

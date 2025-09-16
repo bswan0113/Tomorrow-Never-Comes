@@ -8,6 +8,9 @@ using System.Threading;
 using Core.Interface;
 using Core.Interface.Core.Interface;
 using Core.Logging;
+using ScriptableObjects.Abstract;
+using ScriptableObjects.Action;
+using ScriptableObjects.Data;
 using UnityEngine;
 using VContainer; // VContainer를 사용하여 의존성 주입을 명확히 함
 

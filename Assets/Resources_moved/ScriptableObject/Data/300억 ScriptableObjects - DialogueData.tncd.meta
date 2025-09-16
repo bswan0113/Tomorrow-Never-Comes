@@ -8,9 +8,9 @@ ScriptedImporter:
   assetBundleName: 
   assetBundleVariant: 
   script: {fileID: 11500000, guid: 5cbbe11a43f948f7923f731b15436f4e, type: 3}
-  targetTypeAssemblyQualifiedName: DialogueData, Assembly-CSharp, Version=0.0.0.0,
-    Culture=neutral, PublicKeyToken=null
+  targetTypeAssemblyQualifiedName: ScriptableObjects.Data.DialogueData, Assembly-CSharp,
+    Version=0.0.0.0, Culture=neutral, PublicKeyToken=null
   strategy: 1
   groupedListField: dialogueLines
-  groupedListItemTypeAssemblyQualifiedName: DialogueLine, Assembly-CSharp, Version=0.0.0.0,
-    Culture=neutral, PublicKeyToken=null
+  groupedListItemTypeAssemblyQualifiedName: ScriptableObjects.Data.DialogueLine,
+    Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null

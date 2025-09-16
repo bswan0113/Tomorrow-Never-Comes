@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading.Tasks; // Task 사용을 위해 추가
 using Core.Interface;
 using Core.Logging;
+using ScriptableObjects.Abstract;
+using ScriptableObjects.Util;
 using UnityEngine;
 using UnityEngine.AddressableAssets; // Addressables 사용을 위해 추가
 using UnityEngine.ResourceManagement.AsyncOperations; // AsyncOperationHandle을 위해 추가

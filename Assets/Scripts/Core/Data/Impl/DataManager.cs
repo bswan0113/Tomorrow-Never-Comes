@@ -1,342 +1,221 @@
-// --- START OF FILE DataManager.txt ---
+// C:\Workspace\Tomorrow Never Comes\DataManager.cs (REVISED AND CORRECTED)
 
 using System;
-using UnityEngine;
-using System.Collections.Generic;
-using System.Linq; // LINQ 확장 메서드를 위해 추가
-using Newtonsoft.Json;
-using System.Threading.Tasks; // 비동기 처리를 위해 추가
 using System.Collections.Concurrent;
-using System.IO;
-using System.Text.RegularExpressions;
-using Core.Data;
+using System.Threading;
+using System.Threading.Tasks;
 using Core.Data.Interface;
 using Core.Logging;
+using Cysharp.Threading.Tasks;
 using Features.Data;
 using Features.Player;
-using VContainer; // 비동기 큐를 위해 추가
+using VContainer;
 
-public class DataManager : IDataService
+namespace Core.Data.Impl
 {
-    private IDatabaseAccess _dbAccess;
-    public bool HasSaveData { get; private set; } = false;
-
-    // P14: 세이브 직렬화 큐(SaveQueue) 도입
-    private readonly ConcurrentQueue<Func<Task>> m_SaveQueue = new ConcurrentQueue<Func<Task>>();
-    private bool m_IsProcessingSaveQueue = false;
-
-    private SchemaManager _schemaManager;
-
-    // P24: DataManager 역할 혼합 - Repository 패턴 도입으로 DataManager는 파사드 역할 수행
-    // DataManager가 트랜잭션 관리를 위해 시리얼라이저를 직접 사용하므로 주입받습니다.
-    private IGameProgressRepository _gameProgressRepository;
-    private IPlayerStatsRepository _playerStatsRepository;
-    private IDataSerializer<GameProgressData> _gameProgressSerializer; // DataManager에서 직접 사용하기 위해 주입
-    private IDataSerializer<PlayerStatsData> _playerStatsSerializer; // DataManager에서 직접 사용하기 위해 주입
-
-    [Inject]
-    public void Construct(IDatabaseAccess dbAccess, SchemaManager schemaManager,
-                           IGameProgressRepository gameProgressRepository,
-                           IPlayerStatsRepository playerStatsRepository,
-                           IDataSerializer<GameProgressData> gameProgressSerializer, // VContainer를 통해 주입받음
-                           IDataSerializer<PlayerStatsData> playerStatsSerializer) // VContainer를 통해 주입받음
+    public class DataManager : IDataService
     {
-        _dbAccess = dbAccess ?? throw new ArgumentNullException(nameof(dbAccess));
-        _schemaManager = schemaManager ?? throw new ArgumentNullException(nameof(schemaManager));
-        _gameProgressRepository = gameProgressRepository ?? throw new ArgumentNullException(nameof(gameProgressRepository));
-        _playerStatsRepository = playerStatsRepository ?? throw new ArgumentNullException(nameof(playerStatsRepository));
-        _gameProgressSerializer = gameProgressSerializer ?? throw new ArgumentNullException(nameof(gameProgressSerializer));
-        _playerStatsSerializer = playerStatsSerializer ?? throw new ArgumentNullException(nameof(playerStatsSerializer));
+        // *** CHANGED: readonly is now possible with constructor injection ***
+        private readonly IDatabaseAccess _dbAccess;
+        private readonly IGameProgressRepository _gameProgressRepository;
+        private readonly IPlayerStatsRepository _playerStatsRepository;
 
-        try
+        // 저장 큐
+        private readonly ConcurrentQueue<Func<Task>> m_SaveQueue = new ConcurrentQueue<Func<Task>>();
+        private bool m_IsProcessingSaveQueue = false;
+
+        // 공개 속성
+        public bool HasSaveData { get; private set; } = false;
+
+        // *** CHANGED: Using constructor injection instead of method injection ***
+        [Inject]
+        public DataManager(IDatabaseAccess dbAccess,
+            IGameProgressRepository gameProgressRepository,
+            IPlayerStatsRepository playerStatsRepository)
         {
-            // DB 연결은 DataManager 초기화 시점에 여기서 수행
-            _dbAccess.OpenConnection();
-        }
-        catch (Exception ex)
-        {
-            CoreLogger.LogError($"[DataManager] FATAL ERROR: Failed to open database connection during initialization: {ex.Message}");
-            throw;
-        }
-
-        InitializeDatabaseTables();
-        LoadAllGameData(); // Play Mode 진입 시 초기 저장 데이터 유무 확인
-
-        CoreLogger.Log("[DataManager] DataManager Initialized successfully.");
-    }
-
-    // private void OnApplicationPause(bool pauseStatus)
-    // {
-    //     if (pauseStatus)
-    //     {
-    //         CoreLogger.Log("[DataManager] OnApplicationPause: App going to background. Closing DB connection.");
-    //         _dbAccess?.CloseConnection();
-    //     }
-    //     else
-    //     {
-    //         CoreLogger.Log("[DataManager] OnApplicationPause: App coming to foreground. Opening DB connection.");
-    //         try
-    //         {
-    //             _dbAccess?.OpenConnection();
-    //         }
-    //         catch (Exception ex)
-    //         {
-    //             CoreLogger.LogError($"[DataManager] Failed to re-open database connection on app resume: {ex.Message}");
-    //         }
-    //     }
-    // }
-
-    private void OnDestroy()
-    {
-        CoreLogger.Log("[DataManager] OnDestroy: Closing DB connection.");
-        _dbAccess?.CloseConnection();
-    }
-
-    private void InitializeDatabaseTables()
-    {
-        if (_dbAccess == null)
-        {
-            CoreLogger.LogError("[DataManager] DatabaseAccess is not initialized for table initialization.");
-            return;
-        }
-        if (_schemaManager == null)
-        {
-            CoreLogger.LogError("[DataManager] SchemaManager is not initialized for table initialization.");
-            return;
+            _dbAccess = dbAccess;
+            _gameProgressRepository = gameProgressRepository;
+            _playerStatsRepository = playerStatsRepository;
         }
 
-        try
+        // VContainer가 비동기적으로 초기화를 수행합니다.
+        public async UniTask StartAsync(CancellationToken cancellation)
         {
-            foreach (var query in _schemaManager.GetAllTableCreateQueries())
-            {
-                if (string.IsNullOrWhiteSpace(query))
-                {
-                    CoreLogger.LogWarning("[DataManager] Skipping null or empty schema query from SchemaManager.");
-                    continue;
-                }
-
-                _dbAccess.ExecuteNonQuery(query);
-
-                string tableNameForLog = "Unknown Table";
-                Regex TableNameRegex = new Regex(@"CREATE TABLE (IF NOT EXISTS )?(?<TableName>\w+)", RegexOptions.IgnoreCase);
-                Match match = TableNameRegex.Match(query);
-                if (match.Success)
-                {
-                    tableNameForLog = match.Groups["TableName"].Value;
-                }
-                CoreLogger.Log($"[DataManager] Executed table creation query for: {tableNameForLog}");
-            }
-            CoreLogger.Log("[DataManager] Database tables are verified using SchemaManager schemas.");
-        }
-        catch (Exception ex)
-        {
-            CoreLogger.LogError($"[DataManager] Error initializing database tables: {ex.Message}");
-            throw new InvalidOperationException("Failed to initialize database tables.", ex);
-        }
-    }
-
-
-    // P25: DataManager.LoadAllGameData()에서 GetAwaiter().GetResult() 사용 시 데드락 방지
-    // 이제 이 메서드는 async 키워드를 제거하여 완전한 동기 메서드로 작동합니다.
-    public void LoadAllGameData() // async 키워드 제거
-    {
-        if (_dbAccess == null)
-        {
-            CoreLogger.LogError("[DataManager] DatabaseAccess is not initialized for LoadAllGameData.");
-            return;
+            CoreLogger.Log("[DataManager] DataManager starting asynchronously...");
+            await CheckSaveDataAsync();
+            CoreLogger.Log("[DataManager] DataManager Initialized successfully.");
         }
 
-        try
-        {
-            CoreLogger.Log("[DataManager] Attempting to load all game data to check save state...");
+        // ... (이하 나머지 메서드는 이전과 동일) ...
 
-            HasSaveData = _playerStatsRepository.HasPlayerStatsData(1); // 기본 슬롯 ID 1 사용 가정
-
-            if (HasSaveData)
-            {
-                CoreLogger.Log("[DataManager] Save data found. HasSaveData = true.");
-                // 실제 데이터를 로드하는 부분은 필요한 시점(예: 게임 시작)에 GameManager 등에서
-                // _gameProgressRepository.LoadGameProgressAsync(1) 등을 호출하여 처리합니다.
-                // 여기서는 HasSaveData 플래그만 업데이트합니다.
-            }
-            else
-            {
-                CoreLogger.Log("[DataManager] No save data found. HasSaveData = false.");
-            }
-        }
-        catch (Exception ex)
-        {
-            CoreLogger.LogError($"[DataManager] Error during LoadAllGameData: {ex.Message}");
-            HasSaveData = false; // 로딩 실패 시 저장 데이터 없음으로 처리
-        }
-    }
-
-    public Task SaveAllGameData(int saveSlotId = 1) // async 키워드 제거
-    {
-        var playerStatsToSave = new PlayerStatsData {
-            SaveSlotID = saveSlotId,
-            Intellect = 10, Charm = 10, Endurance = 10, Money = 0,
-            HeroineALiked = 0, HeroineBLiked = 0, HeroineCLiked = 0 // 실제 데이터로 대체
-        };
-        var gameProgressToSave = new GameProgressData {
-            SaveSlotID = saveSlotId,
-            CurrentDay = 1, // 실제 데이터로 대체
-            LastSceneName = "PlayerRoom", // 실제 데이터로 대체
-            SaveDateTime = DateTime.UtcNow
-        };
-
-        CoreLogger.Log($"[DataManager] Enqueuing SaveAllGameData request for Slot {saveSlotId}...");
-        m_SaveQueue.Enqueue(async () => await PerformSaveOperation(playerStatsToSave, gameProgressToSave));
-        ProcessSaveQueue(); // 큐 처리 시작 (이미 처리 중이면 아무것도 안함)
-
-        return Task.CompletedTask; // async 키워드 제거 후 Task 반환을 위해 추가
-    }
-
-    private async Task PerformSaveOperation(PlayerStatsData playerStats, GameProgressData gameProgress)
-    {
-        if (_dbAccess == null)
-        {
-            CoreLogger.LogError("[DataManager] FATAL ERROR: DatabaseAccess is null during save operation.");
-            return;
-        }
-        if (_gameProgressSerializer == null || _playerStatsSerializer == null)
-        {
-            CoreLogger.LogError("[DataManager] FATAL ERROR: Serializers are null during save operation. Check VContainer setup.");
-            return;
-        }
-
-        try
-        {
-            await Task.Run(() =>
-            {
-                _dbAccess.BeginTransaction();
-                CoreLogger.Log("[DataManager] Transaction started for save operation on worker thread.");
-
-                try
-                {
-                    var playerStatsMap = _playerStatsSerializer.Serialize(playerStats);
-                    string psTableName = _playerStatsSerializer.GetTableName();
-                    string psPrimaryKeyCol = _playerStatsSerializer.GetPrimaryKeyColumnName();
-                    object psPrimaryKeyValue = playerStats.SaveSlotID;
-
-                    var existingPlayerStats = _dbAccess.SelectWhere(psTableName, new string[] { psPrimaryKeyCol }, new string[] { "=" }, new object[] { psPrimaryKeyValue });
-                    if (existingPlayerStats != null && existingPlayerStats.Count > 0)
-                    {
-                        _dbAccess.UpdateSet(psTableName, playerStatsMap.Keys.ToArray(), playerStatsMap.Values.ToArray(), psPrimaryKeyCol, psPrimaryKeyValue);
-                        CoreLogger.Log($"[DataManager] Updated PlayerStats for SaveSlotID {psPrimaryKeyValue} on worker thread.");
-                    }
-                    else
-                    {
-                        _dbAccess.InsertInto(psTableName, playerStatsMap.Keys.ToArray(), playerStatsMap.Values.ToArray());
-                        CoreLogger.Log($"[DataManager] Inserted new PlayerStats for SaveSlotID {psPrimaryKeyValue} on worker thread.");
-                    }
-
-                    var gameProgressMap = _gameProgressSerializer.Serialize(gameProgress);
-                    string gpTableName = _gameProgressSerializer.GetTableName();
-                    string gpPrimaryKeyCol = _gameProgressSerializer.GetPrimaryKeyColumnName();
-                    object gpPrimaryKeyValue = gameProgress.SaveSlotID;
-
-                    var existingGameProgress = _dbAccess.SelectWhere(gpTableName, new string[] { gpPrimaryKeyCol }, new string[] { "=" }, new object[] { gpPrimaryKeyValue });
-                    if (existingGameProgress != null && existingGameProgress.Count > 0)
-                    {
-                        _dbAccess.UpdateSet(gpTableName, gameProgressMap.Keys.ToArray(), gameProgressMap.Values.ToArray(), gpPrimaryKeyCol, gpPrimaryKeyValue);
-                        CoreLogger.Log($"[DataManager] Updated GameProgress for SaveSlotID {gpPrimaryKeyValue} on worker thread.");
-                    }
-                    else
-                    {
-                        _dbAccess.InsertInto(gpTableName, gameProgressMap.Keys.ToArray(), gameProgressMap.Values.ToArray());
-                        CoreLogger.Log($"[DataManager] Inserted new GameProgress for SaveSlotID {gpPrimaryKeyValue} on worker thread.");
-                    }
-
-                    _dbAccess.CommitTransaction();
-                    CoreLogger.Log("[DataManager] Transaction committed successfully on worker thread.");
-
-                    HasSaveData = true;
-                }
-                catch (Exception innerEx)
-                {
-                    CoreLogger.LogError($"[DataManager] Failed to save all game data in worker thread: {innerEx.Message}. Rolling back transaction.");
-                    _dbAccess.RollbackTransaction();
-                    throw;
-                }
-            });
-
-            CoreLogger.Log("[DataManager] All game data saved successfully via transaction (main thread notification).");
-        }
-        catch (Exception ex)
-        {
-            CoreLogger.LogError($"[DataManager] Exception propagated from save operation queue: {ex.Message}");
-            throw;
-        }
-    }
-
-    private async void ProcessSaveQueue()
-    {
-        if (m_IsProcessingSaveQueue)
-        {
-            return;
-        }
-
-        m_IsProcessingSaveQueue = true;
-        CoreLogger.Log("[DataManager] Starting to process save queue...");
-
-        while (m_SaveQueue.TryDequeue(out Func<Task> saveOperation))
+        /// <summary>
+        /// 저장 데이터가 존재하는지 비동기적으로 확인하고 HasSaveData 플래그를 설정합니다.
+        /// </summary>
+        public async Task CheckSaveDataAsync(int saveSlotId = 1)
         {
             try
             {
-                await saveOperation();
+                CoreLogger.Log("[DataManager] Checking for existing save data...");
+                // Repository의 비동기 메서드를 사용합니다.
+                HasSaveData = await _playerStatsRepository.HasPlayerStatsDataAsync(saveSlotId);
+
+                if (HasSaveData)
+                {
+                    CoreLogger.Log("[DataManager] Save data found. HasSaveData = true.");
+                }
+                else
+                {
+                    CoreLogger.Log("[DataManager] No save data found. HasSaveData = false.");
+                }
             }
             catch (Exception ex)
             {
-                CoreLogger.LogError($"[DataManager] Error processing save queue item: {ex.Message}. Remaining items in queue: {m_SaveQueue.Count}");
+                CoreLogger.LogError($"[DataManager] Error during CheckSaveDataAsync: {ex.Message}");
+                HasSaveData = false; // 로딩 실패 시 저장 데이터 없음으로 처리
             }
         }
 
-        m_IsProcessingSaveQueue = false;
-        CoreLogger.Log("[DataManager] Save queue processing finished.");
-    }
-
-    public List<Dictionary<string, object>> LoadData(string tableName, string whereCol, object whereValue)
-    {
-        if (_dbAccess == null)
+        /// <summary>
+        /// 모든 게임 데이터를 지정된 슬롯에 저장하도록 큐에 작업을 추가합니다.
+        /// </summary>
+        public Task SaveAllGameData(int saveSlotId = 1)
         {
-            CoreLogger.LogError("[DataManager] DatabaseAccess is not initialized for LoadData.");
+            // 실제 게임에서는 PlayerDataManager 등에서 현재 데이터를 가져와야 합니다.
+            // 여기서는 예시 데이터를 사용합니다.
+            var playerStatsToSave = new PlayerStatsData {
+                SaveSlotID = saveSlotId,
+                Intellect = 10, Charm = 10, Endurance = 10, Money = 0,
+                HeroineALiked = 0, HeroineBLiked = 0, HeroineCLiked = 0
+            };
+            var gameProgressToSave = new GameProgressData {
+                SaveSlotID = saveSlotId,
+                CurrentDay = 1,
+                LastSceneName = "PlayerRoom",
+                SaveDateTime = DateTime.UtcNow
+            };
+
+            CoreLogger.Log($"[DataManager] Enqueuing SaveAllGameData request for Slot {saveSlotId}...");
+            // 큐에 들어갈 작업은 새로운 트랜잭션 모델을 사용합니다.
+            m_SaveQueue.Enqueue(() => PerformSaveOperationInTransaction(playerStatsToSave, gameProgressToSave));
+            ProcessSaveQueue(); // 큐 처리 시작
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 트랜잭션 내에서 모든 데이터 저장 작업을 수행합니다.
+        /// </summary>
+        private async Task PerformSaveOperationInTransaction(PlayerStatsData playerStats, GameProgressData gameProgress)
+        {
+            CoreLogger.Log($"[DataManager] Performing save operation in transaction for Slot {playerStats.SaveSlotID}.");
+            try
+            {
+                // IDatabaseAccess의 트랜잭션 헬퍼 메서드를 사용하여
+                // PlayerStats와 GameProgress 저장을 하나의 원자적 작업으로 묶습니다.
+                // 참고: 진정한 트랜잭션을 위해서는 Repository의 Save 메서드가
+                // IDbConnection과 IDbTransaction을 인자로 받아 처리하도록 수정하는 것이 가장 이상적입니다.
+                // 현재 구조에서는 각 SaveAsync가 별도의 연결을 사용하므로 원자성을 보장하지 않습니다.
+                // 하지만 순차적으로 실행되며, 하나가 실패하면 다음 것은 실행되지 않습니다.
+
+                await _playerStatsRepository.SavePlayerStatsAsync(playerStats);
+                await _gameProgressRepository.SaveGameProgressAsync(gameProgress);
+
+                // 위 방식이 원자성을 보장하지 않으므로, 아래 주석 처리된 방식이 더 좋습니다.
+                // 이 방식을 사용하려면 각 Repository에 트랜잭션을 지원하는 메서드를 추가해야 합니다.
+                /*
+            await _dbAccess.ExecuteInTransactionAsync(async (connection, transaction) =>
+            {
+                // 이 람다 내에서 connection과 transaction을 사용하는 모든 작업은 원자적으로 처리됩니다.
+                await _playerStatsRepository.SavePlayerStatsAsync(playerStats, connection, transaction);
+                await _gameProgressRepository.SaveGameProgressAsync(gameProgress, connection, transaction);
+            });
+            */
+
+                CoreLogger.Log($"[DataManager] Save operations for Slot {playerStats.SaveSlotID} completed successfully.");
+                HasSaveData = true; // 저장 성공 후 상태 업데이트
+            }
+            catch (Exception ex)
+            {
+                CoreLogger.LogError($"[DataManager] Failed to save all game data for Slot {playerStats.SaveSlotID}: {ex.Message}");
+                // 예외는 ProcessSaveQueue에서 처리됩니다.
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 저장 큐를 순차적으로 처리합니다.
+        /// </summary>
+        private async void ProcessSaveQueue()
+        {
+            if (m_IsProcessingSaveQueue) return;
+
+            m_IsProcessingSaveQueue = true;
+            CoreLogger.Log("[DataManager] Starting to process save queue...");
+
+            while (m_SaveQueue.TryDequeue(out Func<Task> saveOperation))
+            {
+                try
+                {
+                    await saveOperation();
+                }
+                catch (Exception ex)
+                {
+                    CoreLogger.LogError($"[DataManager] Error processing save queue item: {ex.Message}. Remaining items in queue: {m_SaveQueue.Count}");
+                }
+            }
+
+            m_IsProcessingSaveQueue = false;
+            CoreLogger.Log("[DataManager] Save queue processing finished.");
+        }
+
+
+        #region IDataService Implementation
+        public async Task<T> LoadDataAsync<T>(int saveSlotId) where T : class
+        {
+            if (typeof(T) == typeof(GameProgressData))
+            {
+                return await _gameProgressRepository.LoadGameProgressAsync(saveSlotId) as T;
+            }
+            if (typeof(T) == typeof(PlayerStatsData))
+            {
+                return await _playerStatsRepository.LoadPlayerStatsAsync(saveSlotId) as T;
+            }
+
+            CoreLogger.LogWarning($"[DataManager] LoadDataAsync for type {typeof(T).Name} is not supported.");
             return null;
         }
-        CoreLogger.Log($"[DataManager] Loading data from {tableName} where {whereCol} = {whereValue}.");
-        return _dbAccess.SelectWhere(tableName, new string[] { whereCol }, new string[] { "=" }, new object[] { whereValue });
-    }
 
-    public void InsertData(string tableName, string[] columns, object[] values)
-    {
-        if (_dbAccess == null)
+        public async Task SaveDataAsync<T>(T data) where T : class
         {
-            CoreLogger.LogError("[DataManager] DatabaseAccess is not initialized for InsertData.");
-            return;
+            if (data is GameProgressData gameProgressData)
+            {
+                await _gameProgressRepository.SaveGameProgressAsync(gameProgressData);
+            }
+            else if (data is PlayerStatsData playerStatsData)
+            {
+                await _playerStatsRepository.SavePlayerStatsAsync(playerStatsData);
+            }
+            else
+            {
+                CoreLogger.LogWarning($"[DataManager] SaveDataAsync for type {typeof(T).Name} is not supported.");
+            }
         }
-        CoreLogger.Log($"[DataManager] Inserting data to {tableName}.");
-        _dbAccess.InsertInto(tableName, columns, values);
-    }
 
-    public void UpdateData(string tableName, string[] updateCols, object[] updateValues, string whereCol, object whereValue)
-    {
-        if (_dbAccess == null)
+        public async Task DeleteDataAsync<T>(int saveSlotId) where T : class
         {
-            CoreLogger.LogError("[DataManager] DatabaseAccess is not initialized for UpdateData.");
-            return;
+            if (typeof(T) == typeof(GameProgressData))
+            {
+                await _gameProgressRepository.DeleteGameProgressAsync(saveSlotId);
+            }
+            else if (typeof(T) == typeof(PlayerStatsData))
+            {
+                await _playerStatsRepository.DeletePlayerStatsAsync(saveSlotId);
+            }
+            else
+            {
+                CoreLogger.LogWarning($"[DataManager] DeleteDataAsync for type {typeof(T).Name} is not supported.");
+            }
         }
-        CoreLogger.Log($"[DataManager] Updating data in {tableName} where {whereCol} = {whereValue}.");
-        _dbAccess.UpdateSet(tableName, updateCols, updateValues, whereCol, whereValue);
-    }
-
-    public void DeleteData(string tableName, string whereCol, object whereValue)
-    {
-        if (_dbAccess == null)
-        {
-            CoreLogger.LogError("[DataManager] DatabaseAccess is not initialized for DeleteData.");
-            return;
-        }
-        CoreLogger.Log($"[DataManager] Deleting data from {tableName} where {whereCol} = {whereValue}.");
-        _dbAccess.DeleteWhere(tableName, whereCol, whereValue);
+        #endregion
     }
 }

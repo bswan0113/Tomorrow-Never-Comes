@@ -1,3 +1,4 @@
+using ScriptableObjects.Abstract;
 using UnityEngine;
 
 namespace Core.Interface

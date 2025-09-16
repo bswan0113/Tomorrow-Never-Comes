@@ -2,7 +2,8 @@
 
 using System; // Action 델리게이트를 사용하기 위해 추가
 using System.Threading;
-using Core.Interface.Core.Interface; // CancellationToken을 사용하기 위해 추가
+using Core.Interface.Core.Interface;
+// CancellationToken을 사용하기 위해 추가
 using UnityEngine;
 
 namespace Core.Interface

@@ -1,4 +1,4 @@
-// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Core\Data\Impl\PlayerStatsRepository.cs
+// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Core\Data\Impl\PlayerStatsRepository.cs (REFACTORED)
 
 using Core.Data.Interface;
 using Core.Logging;
@@ -39,24 +39,22 @@ namespace Core.Data.Impl
         public async Task<PlayerStatsData> LoadPlayerStatsAsync(int saveSlotId)
         {
             CoreLogger.Log($"[PlayerStatsRepository] Loading PlayerStatsData for SaveSlotID: {saveSlotId}");
-            return await Task.Run(() =>
+
+            // DatabaseAccess의 SelectWhereAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+            var dataMaps = await _dbAccess.SelectWhereAsync(
+                _serializer.GetTableName(),
+                new string[] { _serializer.GetPrimaryKeyColumnName() },
+                new string[] { "=" },
+                new object[] { saveSlotId }
+            );
+
+            if (dataMaps == null || !dataMaps.Any())
             {
-                // P20: await Task.Run()을 사용하여 모든 데이터베이스 작업을 백그라운드 스레드에서 실행
-                var dataMaps = _dbAccess.SelectWhere(
-                    _serializer.GetTableName(),
-                    new string[] { _serializer.GetPrimaryKeyColumnName() },
-                    new string[] { "=" },
-                    new object[] { saveSlotId }
-                );
+                CoreLogger.LogWarning($"[PlayerStatsRepository] No PlayerStatsData found for SaveSlotID: {saveSlotId}");
+                return null;
+            }
 
-                if (dataMaps == null || !dataMaps.Any())
-                {
-                    CoreLogger.LogWarning($"[PlayerStatsRepository] No PlayerStatsData found for SaveSlotID: {saveSlotId}");
-                    return null;
-                }
-
-                return _serializer.Deserialize(dataMaps.First());
-            });
+            return _serializer.Deserialize(dataMaps.First());
         }
 
         public async Task SavePlayerStatsAsync(PlayerStatsData data)
@@ -68,62 +66,60 @@ namespace Core.Data.Impl
             }
 
             CoreLogger.Log($"[PlayerStatsRepository] Saving PlayerStatsData for SaveSlotID: {data.SaveSlotID}");
-            await Task.Run(() =>
+
+            var dataMap = _serializer.Serialize(data);
+            string tableName = _serializer.GetTableName();
+            string primaryKeyCol = _serializer.GetPrimaryKeyColumnName();
+            object primaryKeyValue = data.SaveSlotID;
+
+            // DatabaseAccess의 SelectWhereAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+            var existingData = await _dbAccess.SelectWhereAsync(
+                tableName,
+                new string[] { primaryKeyCol },
+                new string[] { "=" },
+                new object[] { primaryKeyValue }
+            );
+
+            if (existingData != null && existingData.Any()) // 기존 데이터 존재 여부 확인
             {
-                var dataMap = _serializer.Serialize(data);
-                string tableName = _serializer.GetTableName();
-                string primaryKeyCol = _serializer.GetPrimaryKeyColumnName();
-                object primaryKeyValue = data.SaveSlotID; // PlayerStatsData 객체에서 직접 SaveSlotID를 가져옴
-
-                var existingData = _dbAccess.SelectWhere(
+                // DatabaseAccess의 UpdateSetAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+                await _dbAccess.UpdateSetAsync(
                     tableName,
-                    new string[] { primaryKeyCol },
-                    new string[] { "=" },
-                    new object[] { primaryKeyValue }
+                    dataMap.Keys.ToArray(),
+                    dataMap.Values.ToArray(),
+                    primaryKeyCol,
+                    primaryKeyValue
                 );
-
-                if (existingData != null && existingData.Count > 0)
-                {
-                    _dbAccess.UpdateSet(
-                        tableName,
-                        dataMap.Keys.ToArray(),
-                        dataMap.Values.ToArray(),
-                        primaryKeyCol,
-                        primaryKeyValue
-                    );
-                    CoreLogger.Log($"[PlayerStatsRepository] Updated PlayerStatsData for SaveSlotID: {primaryKeyValue}");
-                }
-                else
-                {
-                    _dbAccess.InsertInto(
-                        tableName,
-                        dataMap.Keys.ToArray(),
-                        dataMap.Values.ToArray()
-                    );
-                    CoreLogger.Log($"[PlayerStatsRepository] Inserted new PlayerStatsData for SaveSlotID: {primaryKeyValue}");
-                }
-            });
+                CoreLogger.Log($"[PlayerStatsRepository] Updated PlayerStatsData for SaveSlotID: {primaryKeyValue}");
+            }
+            else
+            {
+                // DatabaseAccess의 InsertIntoAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+                await _dbAccess.InsertIntoAsync(
+                    tableName,
+                    dataMap.Keys.ToArray(),
+                    dataMap.Values.ToArray()
+                );
+                CoreLogger.Log($"[PlayerStatsRepository] Inserted new PlayerStatsData for SaveSlotID: {primaryKeyValue}");
+            }
         }
 
         public async Task DeletePlayerStatsAsync(int saveSlotId)
         {
             CoreLogger.Log($"[PlayerStatsRepository] Deleting PlayerStatsData for SaveSlotID: {saveSlotId}");
-            await Task.Run(() =>
-            {
-                _dbAccess.DeleteWhere(
-                    _serializer.GetTableName(),
-                    _serializer.GetPrimaryKeyColumnName(),
-                    saveSlotId
-                );
-            });
+            // DatabaseAccess의 DeleteWhereAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+            await _dbAccess.DeleteWhereAsync(
+                _serializer.GetTableName(),
+                _serializer.GetPrimaryKeyColumnName(),
+                saveSlotId
+            );
         }
 
-        public bool HasPlayerStatsData(int saveSlotId)
+        public async Task<bool> HasPlayerStatsDataAsync(int saveSlotId) // 메서드 이름 변경 및 async 추가
         {
             CoreLogger.Log($"[PlayerStatsRepository] Checking for PlayerStatsData for SaveSlotID: {saveSlotId}");
-            // 이 메서드는 빠르게 저장 데이터 유무만 확인하므로,
-            // 비동기 오버헤드 없이 동기적으로 실행합니다.
-            var dataMaps = _dbAccess.SelectWhere(
+            // DatabaseAccess의 SelectWhereAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+            var dataMaps = await _dbAccess.SelectWhereAsync(
                 _serializer.GetTableName(),
                 new string[] { _serializer.GetPrimaryKeyColumnName() },
                 new string[] { "=" },
