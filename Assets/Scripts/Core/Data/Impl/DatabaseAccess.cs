@@ -4,24 +4,28 @@ using UnityEngine;
 using Mono.Data.Sqlite;
 using System.Collections.Generic;
 using System;
-using System.Data; // IsolationLevel, ConnectionState를 위해 추가
-using Core.Data.Interface; // IDatabaseAccess를 사용하기 위해 추가
+using System.Data;
+using Core.Data.Interface;
 using System.Threading;
 using Core.Logging;
 using VContainer.Unity;
 
 namespace Core.Data.Impl
 {
-    public class DatabaseAccess : IDatabaseAccess, IInitializable
+    public class DatabaseAccess : IDatabaseAccess, IInitializable // IDisposable은 DatabaseCleanup이 담당
     {
         private readonly string m_ConnectionString;
-        private SqliteConnection m_Connection;
-        private SqliteTransaction m_Transaction;
-        private bool _isInTransaction = false; // IsInTransaction 속성 구현을 위한 내부 필드
+
+        // 각 스레드에 독립적인 연결을 제공하는 ThreadLocal 연결 필드입니다.
+        private readonly ThreadLocal<SqliteConnection> _threadLocalConnection;
+        // 각 스레드에 독립적인 트랜잭션 객체를 제공하는 ThreadLocal 필드입니다.
+        private readonly ThreadLocal<SqliteTransaction> _threadLocalTransaction;
+        // 각 스레드의 트랜잭션 상태를 추적하는 ThreadLocal 필드입니다.
+        private readonly ThreadLocal<bool> _threadLocalIsInTransaction;
+
         private const int MAX_RETRY_ATTEMPTS = 3;
         private const int RETRY_DELAY_MS = 100; // 밀리초
         private readonly SchemaManager _schemaManager;
-        private readonly ThreadLocal<SqliteConnection> _threadLocalConnection;
 
         public DatabaseAccess(string dbPath, SchemaManager schemaManager)
         {
@@ -34,147 +38,206 @@ namespace Core.Data.Impl
             CoreLogger.Log($"[DatabaseAccess] Initialized with path: {dbPath}");
 
             // ThreadLocal<SqliteConnection> 초기화
-            // 각 스레드에서 .Value에 접근할 때 연결을 생성하고 엽니다.
             _threadLocalConnection = new ThreadLocal<SqliteConnection>(() =>
             {
                 var conn = new SqliteConnection(m_ConnectionString);
-                conn.Open(); // 스레드 로컬 연결은 생성 시 바로 엽니다.
+                conn.Open();
                 CoreLogger.Log($"[DatabaseAccess] New thread-local connection opened on Thread ID: {Thread.CurrentThread.ManagedThreadId}");
                 return conn;
-            }, trackAllValues: true); // trackAllValues: true는 모든 스레드에 할당된 값들을 추적하여 Dispose 시 모두 닫을 수 있게 합니다.
+            }, trackAllValues: true);
+
+            // ThreadLocal<SqliteTransaction> 초기화 (초기값은 null)
+            _threadLocalTransaction = new ThreadLocal<SqliteTransaction>(() => null, trackAllValues: true);
+            // ThreadLocal<bool> 초기화 (초기값은 false)
+            _threadLocalIsInTransaction = new ThreadLocal<bool>(() => false, trackAllValues: true);
         }
+
+        // VContainer IInitializable 구현
         public void Initialize()
         {
             CoreLogger.Log("[DatabaseAccess] VContainer Initialize called. Initializing schema.");
+            // 스키마 초기화는 메인 스레드의 연결을 통해 이루어져야 합니다.
+            // IDatabaseAccess를 SchemaManager에 전달하여 DB 작업을 위임합니다.
+            _schemaManager.InitializeTables(this); // 'this' (IDatabaseAccess)를 SchemaManager에 전달하여 DB 작업을 위임
+            CoreLogger.Log("[DatabaseAccess] Schema initialized.");
         }
+
         // --- 연결 관리 ---
         public void OpenConnection()
         {
-            // _threadLocalConnection.Value 접근 시 이미 연결이 열리도록 설정되어 있습니다.
-            // 만약 필요하다면, 여기서 추가적인 로직을 넣을 수 있습니다.
-            if (_threadLocalConnection.Value.State != ConnectionState.Open)
+            // _threadLocalConnection.Value 접근 시 연결이 생성/열리므로, 직접 호출할 일은 적습니다.
+            // 만약 명시적으로 연결을 열어야 하는 상황이라면, 현재 스레드의 연결 상태를 확인하고 엽니다.
+            if (_threadLocalConnection.IsValueCreated && _threadLocalConnection.Value.State != ConnectionState.Open)
             {
                 _threadLocalConnection.Value.Open();
                 CoreLogger.Log($"[DatabaseAccess] Thread-local connection re-opened on Thread ID: {Thread.CurrentThread.ManagedThreadId}");
             }
+            else if (!_threadLocalConnection.IsValueCreated)
+            {
+                // _threadLocalConnection.Value에 접근하여 연결을 생성하고 엽니다.
+                // 이 호출 자체가 ThreadLocal 팩토리를 트리거합니다.
+                var conn = _threadLocalConnection.Value;
+                CoreLogger.Log($"[DatabaseAccess] Thread-local connection opened via OpenConnection on Thread ID: {Thread.CurrentThread.ManagedThreadId}");
+            }
         }
-
 
         public void CloseConnection()
         {
+            // 현재 스레드의 연결을 닫고 해제합니다.
             if (_threadLocalConnection.IsValueCreated && _threadLocalConnection.Value.State == ConnectionState.Open)
             {
-                // 트랜잭션 관리: 현재 스레드에 활성 트랜잭션이 있다면 롤백
-                // if (_threadLocalIsInTransaction.Value) { RollbackTransaction(); }
+                // 트랜잭션이 활성화된 상태에서 연결을 닫으면 롤백됩니다.
+                if (_threadLocalIsInTransaction.Value)
+                {
+                    CoreLogger.LogWarning($"[DatabaseAccess] Closing connection with active transaction on Thread ID: {Thread.CurrentThread.ManagedThreadId}. Transaction will be rolled back implicitly.");
+                    RollbackTransactionInternal(); // 내부적으로 롤백 처리
+                }
 
                 _threadLocalConnection.Value.Close();
                 _threadLocalConnection.Value.Dispose();
                 _threadLocalConnection.Value = null; // ThreadLocal에서 현재 스레드의 값 제거
-                CoreLogger.Log(
-                    $"[DatabaseAccess] Thread-local connection closed on Thread ID: {Thread.CurrentThread.ManagedThreadId}");
+                CoreLogger.Log($"[DatabaseAccess] Thread-local connection closed on Thread ID: {Thread.CurrentThread.ManagedThreadId}");
             }
         }
-        public void Dispose()
+
+        // --- IDisposable 역할을 DatabaseCleanup에 위임 (DatabaseAccess 클래스에서는 제거) ---
+        // DatabaseCleanup이 IDatabaseAccess를 통해 이 클래스의 리소스를 정리할 수 있도록
+        // DatabaseAccess가 직접 IDisposable을 구현하지 않아도 됩니다.
+        // 하지만 ThreadLocal의 자원 해제는 여전히 필요하므로, DatabaseCleanup 클래스에서
+        // DatabaseAccess의 DisposeAllThreadLocalResources()와 같은 메서드를 호출하거나,
+        // DatabaseAccess를 IDisposable로 캐스팅하여 Dispose를 호출하도록 해야 합니다.
+        // 현재 코드에서는 IDisposable이 제거되었으므로, DatabaseCleanup에서 직접 접근하여
+        // 다음 메서드를 호출하는 방식으로 디자인해야 합니다.
+        public void DisposeAllThreadLocalResources()
         {
-            // 모든 스레드에 할당된 SqliteConnection 객체들을 닫고 해제합니다.
+            // 모든 스레드에 할당된 SqliteConnection 및 SqliteTransaction 객체들을 닫고 해제합니다.
             if (_threadLocalConnection != null)
             {
                 CoreLogger.Log("[DatabaseAccess] Disposing all thread-local connections.");
                 _threadLocalConnection.Dispose();
             }
+            if (_threadLocalTransaction != null)
+            {
+                CoreLogger.Log("[DatabaseAccess] Disposing all thread-local transactions.");
+                _threadLocalTransaction.Dispose();
+            }
+            if (_threadLocalIsInTransaction != null)
+            {
+                CoreLogger.Log("[DatabaseAccess] Disposing all thread-local transaction state flags.");
+                _threadLocalIsInTransaction.Dispose();
+            }
         }
+
 
         // --- 트랜잭션 관리 ---
         public void BeginTransaction(IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
         {
-            if (m_Connection == null || m_Connection.State != ConnectionState.Open)
+            if (_threadLocalIsInTransaction.Value)
             {
-                throw new InvalidOperationException("Connection is not open. Call OpenConnection() first.");
+                throw new InvalidOperationException($"[DatabaseAccess] A transaction is already active on Thread ID: {Thread.CurrentThread.ManagedThreadId}. Nested transactions are not supported by this API.");
             }
-            if (_isInTransaction)
+
+            var connection = _threadLocalConnection.Value; // 연결이 없으면 생성하고 엽니다.
+            if (connection.State != ConnectionState.Open)
             {
-                throw new InvalidOperationException("A transaction is already active.");
+                connection.Open();
             }
-            ExecuteWithRetry(() =>
-            {
-                m_Transaction = m_Connection.BeginTransaction(isolationLevel);
-                CoreLogger.Log($"[DatabaseAccess] Transaction started with IsolationLevel: {isolationLevel}");
-                return true;
-            }, "beginning transaction", false);
+
+            _threadLocalTransaction.Value = connection.BeginTransaction(isolationLevel);
+            _threadLocalIsInTransaction.Value = true;
+            CoreLogger.Log($"[DatabaseAccess] Transaction started on Thread ID: {Thread.CurrentThread.ManagedThreadId} with IsolationLevel: {isolationLevel}");
         }
 
         public void CommitTransaction()
         {
-            if (!_isInTransaction || m_Transaction == null)
+            if (!_threadLocalIsInTransaction.Value)
             {
-                throw new InvalidOperationException("No active transaction to commit.");
+                throw new InvalidOperationException($"[DatabaseAccess] No active transaction to commit on Thread ID: {Thread.CurrentThread.ManagedThreadId}.");
             }
+
             try
             {
-                m_Transaction.Commit();
-                CoreLogger.Log("[DatabaseAccess] Transaction committed.");
+                _threadLocalTransaction.Value.Commit();
+                CoreLogger.Log($"[DatabaseAccess] Transaction committed on Thread ID: {Thread.CurrentThread.ManagedThreadId}.");
             }
-            catch (SqliteException ex)
+            catch (Exception ex)
             {
-                CoreLogger.LogError($"[DatabaseAccess] Error committing transaction: {ex.Message}");
-                // 커밋 실패 시 롤백 시도하여 일관성 유지
-                RollbackTransaction();
-                throw new InvalidOperationException("Error during transaction commit.", ex);
+                CoreLogger.LogError($"[DatabaseAccess] Error committing transaction on Thread ID: {Thread.CurrentThread.ManagedThreadId}: {ex.Message}");
+                // 커밋 실패 시 롤백 시도 (최선 노력)
+                RollbackTransactionInternal();
+                throw;
             }
-            ExecuteWithRetry(() =>
+            finally
             {
-                m_Transaction.Commit();
-                CoreLogger.Log("[DatabaseAccess] Transaction committed successfully.");
-                return true;
-            }, "committing transaction");
-            _isInTransaction = false; // 트랜잭션 종료 시 상태 업데이트
-            m_Transaction.Dispose(); // finally 블록에서 수행되던 부분 이동
-            m_Transaction = null;    // finally 블록에서 수행되던 부분 이동
+                // 트랜잭션 객체 정리
+                ReleaseTransactionResources();
+            }
         }
 
         public void RollbackTransaction()
         {
-            if (!_isInTransaction || m_Transaction == null)
+            if (!_threadLocalIsInTransaction.Value)
             {
-                throw new InvalidOperationException("No active transaction to rollback.");
+                throw new InvalidOperationException($"[DatabaseAccess] No active transaction to rollback on Thread ID: {Thread.CurrentThread.ManagedThreadId}.");
             }
+
+            RollbackTransactionInternal();
+        }
+
+        // 내부 롤백 처리 메서드 (예외를 던지지 않고 정리만 합니다)
+        private void RollbackTransactionInternal()
+        {
             try
             {
-                m_Transaction.Rollback();
-                CoreLogger.Log("[DatabaseAccess] Transaction rolled back.");
+                if (_threadLocalTransaction.IsValueCreated && _threadLocalTransaction.Value != null)
+                {
+                    _threadLocalTransaction.Value.Rollback();
+                    CoreLogger.Log($"[DatabaseAccess] Transaction rolled back on Thread ID: {Thread.CurrentThread.ManagedThreadId}.");
+                }
             }
-            catch (SqliteException ex)
+            catch (Exception ex)
             {
-                CoreLogger.LogError($"[DatabaseAccess] Error rolling back transaction: {ex.Message}");
-                throw new InvalidOperationException("Error during transaction rollback.", ex);
+                CoreLogger.LogError($"[DatabaseAccess] Error rolling back transaction on Thread ID: {Thread.CurrentThread.ManagedThreadId}: {ex.Message}");
             }
             finally
             {
-                m_Transaction.Dispose();
-                m_Transaction = null;
-                _isInTransaction = false; // 트랜잭션 종료 시 상태 업데이트
+                // 트랜잭션 객체 정리
+                ReleaseTransactionResources();
             }
         }
 
-        // IsInTransaction 속성 구현
-        public bool IsInTransaction => _isInTransaction;
+        // 트랜잭션 리소스 해제 헬퍼
+        private void ReleaseTransactionResources()
+        {
+            if (_threadLocalTransaction.IsValueCreated && _threadLocalTransaction.Value != null)
+            {
+                _threadLocalTransaction.Value.Dispose();
+                _threadLocalTransaction.Value = null;
+            }
+            _threadLocalIsInTransaction.Value = false;
+        }
 
-        // --- Command 생성 헬퍼 (누락된 부분 추가) ---
+        public bool IsInTransaction => _threadLocalIsInTransaction.Value;
+
+        // --- Command 생성 헬퍼 ---
         private SqliteCommand CreateCommand(string query, Dictionary<string, object> parameters = null)
         {
-            // 현재 스레드의 연결을 사용합니다.
-            var connection = _threadLocalConnection.Value; // <<--- 현재 스레드의 연결 사용!
+            var connection = _threadLocalConnection.Value;
 
             if (connection == null || connection.State != ConnectionState.Open)
             {
-                CoreLogger.LogError($"[DatabaseAccess] Database connection is not open on Thread ID: {Thread.CurrentThread.ManagedThreadId}. Call OpenConnection() first. (This should not happen with ThreadLocal setup)", null);
+                CoreLogger.LogError($"[DatabaseAccess] Database connection is not open on Thread ID: {Thread.CurrentThread.ManagedThreadId}. This should not happen with ThreadLocal setup unless connection was explicitly closed.", null);
                 throw new InvalidOperationException("Database connection is not open. Call OpenConnection() first.");
             }
 
             var command = connection.CreateCommand();
             command.CommandText = query;
-            // 트랜잭션 로직도 스레드 로컬 트랜잭션 객체를 사용해야 합니다.
-            // if (m_Transaction != null) { command.Transaction = m_Transaction; }
+
+            // 현재 스레드에 활성 트랜잭션이 있다면 Command에 할당합니다.
+            if (_threadLocalIsInTransaction.Value)
+            {
+                command.Transaction = _threadLocalTransaction.Value;
+            }
 
             if (parameters != null)
             {
@@ -196,7 +259,6 @@ namespace Core.Data.Impl
             {
                 throw new ArgumentException("[DatabaseAccess] Table name cannot be null or empty.", nameof(tableName));
             }
-            // P18: SQL 화이트리스트/enum 매핑 부재 (SchemaManager로 완전 해결)
             if (!_schemaManager.IsTableNameValid(tableName))
             {
                 CoreLogger.LogError($"[DatabaseAccess] Attempted to access an unallowed or invalid table: '{tableName}'. Check SchemaManager configuration.");
@@ -204,14 +266,13 @@ namespace Core.Data.Impl
             }
         }
 
-        // P17: SQL 식별자 문자열 삽입 취약 - 컬럼 이름 유효성 검사 강화
-        private void ValidateColumnNames(string tableName, params string[] columnNames) // params 키워드 추가
+        private void ValidateColumnNames(string tableName, params string[] columnNames)
         {
             if (columnNames == null || columnNames.Length == 0) return;
 
             foreach (string colName in columnNames)
             {
-                if (string.IsNullOrWhiteSpace(colName)) // 컬럼 이름 자체의 null/empty 검사 추가
+                if (string.IsNullOrWhiteSpace(colName))
                 {
                     throw new ArgumentException($"[DatabaseAccess] Column name cannot be null or empty for table '{tableName}'.", nameof(colName));
                 }
@@ -228,12 +289,8 @@ namespace Core.Data.Impl
         {
             return ExecuteWithRetry(() =>
                 {
-                    // CreateCommand에서 이미 _threadLocalConnection.Value를 사용하고 연결은 열려있으므로,
-                    // 여기서 별도의 connection.Open()은 필요 없습니다.
-                    // 만약 연결이 끊어졌다면 ThreadLocal 생성자가 다시 열어줄 것입니다.
-
                     var result = new List<Dictionary<string, object>>();
-                    using (var command = CreateCommand(query, parameters)) // <<--- 매개변수 connection 제거
+                    using (var command = CreateCommand(query, parameters))
                     {
                         using (var reader = command.ExecuteReader())
                         {
@@ -252,11 +309,10 @@ namespace Core.Data.Impl
                 }, $"executing read query '{query}'");
         }
 
-        // IDatabaseAccess 구현
         public List<Dictionary<string, object>> SelectWhere(string tableName, string[] columns, string[] operations, object[] values, string logicalOperator)
         {
             ValidateTableName(tableName);
-            ValidateColumnNames(tableName, columns); // WHERE 절 컬럼 이름 검증
+            ValidateColumnNames(tableName, columns);
 
             if (columns == null || operations == null || values == null) throw new ArgumentNullException("Columns, operations, or values array cannot be null.");
             if (columns.Length != operations.Length || columns.Length != values.Length)
@@ -265,15 +321,13 @@ namespace Core.Data.Impl
             }
             if (string.IsNullOrWhiteSpace(logicalOperator)) throw new ArgumentException("Logical operator cannot be null or empty.", nameof(logicalOperator));
 
-            // logicalOperator 유효성 검증 강화
             string upperLogicalOperator = logicalOperator.Trim().ToUpper();
             if (!(upperLogicalOperator == "AND" || upperLogicalOperator == "OR"))
             {
                 throw new ArgumentException($"Invalid logical operator: '{logicalOperator}'. Only 'AND' or 'OR' are allowed.", nameof(logicalOperator));
             }
 
-
-            string query = $"SELECT * FROM {tableName} WHERE "; // 이 메서드는 인터페이스 정의에 따라 모든 컬럼을 선택합니다.
+            string query = $"SELECT * FROM {tableName} WHERE ";
             var parameters = new Dictionary<string, object>();
 
             for (int i = 0; i < columns.Length; i++)
@@ -282,7 +336,7 @@ namespace Core.Data.Impl
                 query += $"{columns[i]} {operations[i]} {paramName}";
                 if (i < columns.Length - 1)
                 {
-                    query += $" {upperLogicalOperator} "; // 검증된 연산자 사용
+                    query += $" {upperLogicalOperator} ";
                 }
                 parameters[paramName] = values[i];
             }
@@ -297,12 +351,10 @@ namespace Core.Data.Impl
         }
 
         // --- 데이터 변경 (Create, Update, Delete) ---
-
-        // IDatabaseAccess 구현
         public void InsertInto(string tableName, string[] columns, object[] values)
         {
             ValidateTableName(tableName);
-            ValidateColumnNames(tableName, columns); // INSERT 절 컬럼 이름 검증
+            ValidateColumnNames(tableName, columns);
 
             if (columns == null || values == null) throw new ArgumentNullException("Columns or values array cannot be null.");
             if (columns.Length != values.Length)
@@ -310,7 +362,6 @@ namespace Core.Data.Impl
                 throw new ArgumentException("Length of columns and values arrays must be equal.", nameof(columns));
             }
 
-            // 컬럼 이름에 `@` 접두사를 붙여 매개변수 이름으로 사용
             string[] parameterNames = new string[columns.Length];
             for (int i = 0; i < columns.Length; i++)
             {
@@ -328,12 +379,11 @@ namespace Core.Data.Impl
             ExecuteNonQuery(query, parameters);
         }
 
-        // IDatabaseAccess 구현
         public void UpdateSet(string tableName, string[] updateCols, object[] updateValues, string whereCol, object whereValue)
         {
             ValidateTableName(tableName);
-            ValidateColumnNames(tableName, updateCols); // UPDATE SET 절 컬럼 이름 검증
-            ValidateColumnNames(tableName, whereCol); // WHERE 절 컬럼 이름 검증
+            ValidateColumnNames(tableName, updateCols);
+            ValidateColumnNames(tableName, whereCol);
 
             if (updateCols == null || updateValues == null) throw new ArgumentNullException("Update columns or values array cannot be null.");
             if (updateCols.Length != updateValues.Length)
@@ -341,7 +391,6 @@ namespace Core.Data.Impl
                 throw new ArgumentException("Length of updateCols and updateValues arrays must be equal.", nameof(updateCols));
             }
             if (string.IsNullOrWhiteSpace(whereCol)) throw new ArgumentException("Where column cannot be null or empty.", nameof(whereCol));
-
 
             string query = $"UPDATE {tableName} SET ";
             var parameters = new Dictionary<string, object>();
@@ -364,7 +413,6 @@ namespace Core.Data.Impl
             ExecuteNonQuery(query, parameters);
         }
 
-        // IDatabaseAccess 구현
         public void DeleteContents(string tableName)
         {
             ValidateTableName(tableName);
@@ -374,11 +422,10 @@ namespace Core.Data.Impl
             ExecuteNonQuery(query);
         }
 
-        // IDatabaseAccess 구현
         public void DeleteWhere(string tableName, string whereCol, object whereValue)
         {
             ValidateTableName(tableName);
-            ValidateColumnNames(tableName, whereCol); // WHERE 절 컬럼 이름 검증
+            ValidateColumnNames(tableName, whereCol);
 
             if (string.IsNullOrWhiteSpace(whereCol)) throw new ArgumentException("Where column cannot be null or empty.", nameof(whereCol));
 
@@ -392,23 +439,18 @@ namespace Core.Data.Impl
         }
 
         // --- 범용 쿼리 실행 ---
-        // IDatabaseAccess 구현 (매개변수 없는 오버로드)
         public int ExecuteNonQuery(string query)
         {
             return ExecuteNonQuery(query, null);
         }
 
-        // IDatabaseAccess 구현 (매개변수 있는 오버로드)
         public int ExecuteNonQuery(string query, Dictionary<string, object> parameters = null)
         {
             if (string.IsNullOrWhiteSpace(query)) throw new ArgumentException("Query cannot be null or empty.", nameof(query));
 
             return ExecuteWithRetry(() =>
                 {
-                    // CreateCommand에서 이미 _threadLocalConnection.Value를 사용하고 연결은 열려있으므로,
-                    // 여기서 별도의 connection.Open()은 필요 없습니다.
-
-                    using (var command = CreateCommand(query, parameters)) // <<--- 매개변수 connection 제거
+                    using (var command = CreateCommand(query, parameters))
                     {
                         int rowsAffected = command.ExecuteNonQuery();
                         CoreLogger.Log($"[DatabaseAccess] Executed NonQuery: '{query}'. Rows affected: {rowsAffected}");
@@ -453,10 +495,11 @@ namespace Core.Data.Impl
                     if (i < MAX_RETRY_ATTEMPTS - 1)
                     {
                         CoreLogger.LogWarning($"[DatabaseAccess] Transient error during {operationName}: {ex.Message}. Will retry.");
+                        // 트랜잭션 중 발생한 오류라면 롤백 후 재시도
                         if (IsInTransaction && shouldRetryTransaction)
                         {
                             CoreLogger.LogWarning($"[DatabaseAccess] Rolling back current transaction before retry for {operationName}.");
-                            RollbackTransaction();
+                            RollbackTransactionInternal(); // RollbackTransaction을 호출하여 상태를 정리
                         }
                         continue;
                     }
@@ -465,6 +508,7 @@ namespace Core.Data.Impl
                 }
                 catch (InvalidOperationException ex)
                 {
+                    // 연결 끊김 등 재시도 불가능한 오류는 즉시 던집니다.
                     CoreLogger.LogError($"[DatabaseAccess] Non-retryable error during {operationName}: {ex.Message}");
                     throw;
                 }
@@ -477,7 +521,6 @@ namespace Core.Data.Impl
             throw new InvalidOperationException($"[DatabaseAccess] Failed to {operationName} after {MAX_RETRY_ATTEMPTS} attempts without throwing specific exception.");
         }
 
-    // ExecuteWithRetry 오버로드 (void 액션용)
         private void ExecuteWithRetry(Action action, string operationName, bool shouldRetryTransaction = true)
         {
             ExecuteWithRetry<bool>(() => { action(); return true; }, operationName, shouldRetryTransaction);

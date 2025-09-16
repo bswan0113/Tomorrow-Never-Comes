@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using Core.Logging;
 using Newtonsoft.Json;
 using UnityEngine;
+using Core.Data.Interface; // IDatabaseAccess 인터페이스를 사용하기 위해 추가
 
 namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interface에 포함해도 됨)
 {
@@ -31,20 +32,37 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
     /// <summary>
     /// 데이터베이스 스키마 정보를 로드하고 관리하며,
     /// SQL 식별자(테이블, 컬럼 이름)의 유효성을 검사하는 책임만을 가집니다.
+    /// 또한, IDatabaseAccess를 사용하여 실제 테이블을 초기화합니다.
     /// </summary>
     public class SchemaManager
     {
         private Dictionary<string, TableSchema> m_TableSchemas;
+
+        // CREATE TABLE 쿼리에서 테이블 이름을 추출하기 위한 정규식
         private readonly Regex TableNameRegex = new Regex(@"CREATE TABLE (IF NOT EXISTS )?(?<TableName>\w+)", RegexOptions.IgnoreCase);
+
+        // CREATE TABLE 쿼리에서 컬럼 정의 부분을 추출하기 위한 정규식 (괄호 안 내용)
+        private readonly Regex ColumnsContentRegex = new Regex(@"CREATE TABLE(?: IF NOT EXISTS)? \w+\s*\((?<ColumnsContent>.*?)\)", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
+        // 컬럼 정의 문자열에서 이름, 타입, 제약조건을 파싱하기 위한 정규식 (부분적으로만 강력함)
+        // 그룹: 1=컬럼이름, 2=타입, 3=제약조건 (PRIMARY KEY, NOT NULL, DEFAULT 등)
+        private readonly Regex ColumnDefinitionRegex = new Regex(
+            @"^\s*(?<Name>\w+)\s+(?<Type>\w+)" + // Column Name and Type
+            @"(?<Constraints>(?:\s+(?:PRIMARY KEY|NOT NULL|UNIQUE|CHECK\s*\(.+?\)|DEFAULT\s+(?:'[^']+'|\d+|NULL)))*?)" + // Optional constraints
+            @"(?:,\s*|$)", // Ends with comma or end of string
+            RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture
+        );
+
+
         public SchemaManager()
         {
-            m_TableSchemas = new Dictionary<string, TableSchema>();
+            m_TableSchemas = new Dictionary<string, TableSchema>(StringComparer.OrdinalIgnoreCase); // 테이블 이름 대소문자 무시
             LoadSchemasInternal();
         }
 
         /// <summary>
         /// SQLSchemas.json 파일에서 스키마 정보를 로드하고 파싱합니다.
-        /// 이 메서드는 생성자에서 호출됩니다.
+        /// 이 메서드는 생성자에서 호출되며, 컬럼 정보까지 파싱합니다.
         /// </summary>
         private void LoadSchemasInternal()
         {
@@ -64,16 +82,16 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
 
             foreach (var entry in rawQueries)
             {
-                string createQuery = entry.Value; // JSON 값(CREATE TABLE 쿼리)을 사용
+                string createQuery = entry.Value;
 
-                // 정규식을 사용하여 쿼리에서 실제 테이블 이름 추출
-                Match match = TableNameRegex.Match(createQuery);
-                if (!match.Success)
+                // 정규식을 사용하여 쿼리에서 실제 테이블 이름 추출 (JSON 키 대신 쿼리 내부 이름 사용)
+                Match tableNameMatch = TableNameRegex.Match(createQuery);
+                if (!tableNameMatch.Success)
                 {
                     CoreLogger.LogWarning($"[SchemaManager] Could not extract table name from query: '{createQuery}'. Skipping.");
                     continue;
                 }
-                string actualTableName = match.Groups["TableName"].Value;
+                string actualTableName = tableNameMatch.Groups["TableName"].Value;
 
                 if (string.IsNullOrWhiteSpace(actualTableName))
                 {
@@ -81,76 +99,95 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
                     continue;
                 }
 
-                if (m_TableSchemas.ContainsKey(actualTableName)) // 실제 테이블 이름으로 검사
+                if (m_TableSchemas.ContainsKey(actualTableName))
                 {
                     CoreLogger.LogWarning($"[SchemaManager] Duplicate table name '{actualTableName}' found in schema. Overwriting.");
                 }
 
-                m_TableSchemas[actualTableName] = new TableSchema // 실제 테이블 이름으로 저장
+                TableSchema tableSchema = new TableSchema
                 {
                     Name = actualTableName,
                     CreateQuery = createQuery,
-                    Columns = new List<ColumnSchema>() // TODO: 실제 파싱 로직 구현
+                    Columns = new List<ColumnSchema>()
                 };
-                CoreLogger.Log($"[SchemaManager] Loaded schema for table: {actualTableName} (from JSON key '{entry.Key}')");
+
+                // 컬럼 정보 파싱
+                Match columnsMatch = ColumnsContentRegex.Match(createQuery);
+                if (columnsMatch.Success)
+                {
+                    string columnsContent = columnsMatch.Groups["ColumnsContent"].Value.Trim();
+
+                    // 각 컬럼 정의를 파싱
+                    // NOTE: 이 파싱 로직은 매우 단순하므로, 복잡한 DDL (예: FOREIGN KEY 제약 조건)에는 취약할 수 있습니다.
+                    // 실제 애플리케이션에서는 더 강력한 SQL 파서를 고려할 수 있습니다.
+                    MatchCollection columnDefMatches = ColumnDefinitionRegex.Matches(columnsContent);
+                    foreach (Match colDefMatch in columnDefMatches)
+                    {
+                        if (!colDefMatch.Success) continue;
+
+                        string colName = colDefMatch.Groups["Name"].Value;
+                        string colType = colDefMatch.Groups["Type"].Value;
+                        string constraints = colDefMatch.Groups["Constraints"].Value;
+
+                        bool isPrimaryKey = constraints.IndexOf("PRIMARY KEY", StringComparison.OrdinalIgnoreCase) >= 0;
+                        bool isNullable = constraints.IndexOf("NOT NULL", StringComparison.OrdinalIgnoreCase) < 0; // NOT NULL이 없으면 NULL 허용
+
+                        string defaultValue = null;
+                        Match defaultMatch = Regex.Match(constraints, @"DEFAULT\s+(?<DefaultValue>(?:'[^']+'|\d+|NULL))", RegexOptions.IgnoreCase);
+                        if (defaultMatch.Success)
+                        {
+                            defaultValue = defaultMatch.Groups["DefaultValue"].Value;
+                        }
+
+                        tableSchema.Columns.Add(new ColumnSchema
+                        {
+                            Name = colName,
+                            Type = colType,
+                            IsPrimaryKey = isPrimaryKey,
+                            IsNullable = isNullable,
+                            DefaultValue = defaultValue
+                        });
+                    }
+                }
+
+                m_TableSchemas[actualTableName] = tableSchema;
+                CoreLogger.Log($"[SchemaManager] Loaded schema for table: {actualTableName} (from JSON key '{entry.Key}', parsed {tableSchema.Columns.Count} columns)");
             }
             CoreLogger.Log($"[SchemaManager] Loaded {m_TableSchemas.Count} table schemas.");
         }
+
         /// <summary>
-        /// SQLSchemas.json 파일에서 스키마 정보를 로드하고 파싱합니다.
+        /// 로드된 스키마 정보를 기반으로 데이터베이스에 실제 테이블을 생성합니다.
+        /// 이 메서드는 IDatabaseAccess를 통해 DB 작업을 위임받습니다.
         /// </summary>
-        public void LoadSchemas()
+        /// <param name="dbAccess">데이터베이스 접근 인터페이스.</param>
+        public void InitializeTables(IDatabaseAccess dbAccess)
         {
-            TextAsset sqlJson = Resources.Load<TextAsset>("SQLSchemas");
-            if (sqlJson == null)
+            if (dbAccess == null)
             {
-                CoreLogger.LogError("[SchemaManager] Resources/SQLSchemas.json file not found! Unable to load database schemas.");
-                throw new FileNotFoundException("SQLSchemas.json file not found in Resources.", "SQLSchemas");
+                throw new ArgumentNullException(nameof(dbAccess), "[SchemaManager] IDatabaseAccess cannot be null for schema initialization.");
             }
 
-            // SQLSchemas.json은 { "TableName": "CREATE TABLE ..." } 형태이므로,
-            // 이 쿼리를 파싱하여 ColumnSchema 목록을 만들어야 합니다.
-            // 단순화를 위해 여기서는 각 쿼리를 TableSchema.CreateQuery에 저장하고,
-            // 테이블 이름만 추출하여 허용된 테이블로 등록합니다.
-            // 컬럼 정보 파싱은 더 복잡하므로, 초기 단계에서는 테이블 이름 유효성 검사에 집중합니다.
-            // TODO: 실제 CREATE TABLE 쿼리를 파싱하여 Columns 정보를 채우는 로직 구현
-            var rawQueries = JsonConvert.DeserializeObject<Dictionary<string, string>>(sqlJson.text);
-            if (rawQueries == null)
+            CoreLogger.Log("[SchemaManager] Initializing database tables using IDatabaseAccess...");
+            foreach (var tableSchema in m_TableSchemas.Values)
             {
-                CoreLogger.LogError("[SchemaManager] Failed to deserialize SQLSchemas.json. File content might be invalid.");
-                return;
-            }
-
-            foreach (var entry in rawQueries)
-            {
-                string tableName = entry.Key; // 보통 Dictionary의 키가 테이블 이름으로 사용됨
-                // CREATE TABLE 문의 실제 테이블 이름을 추출 (더 견고한 파싱 필요)
-                // 예: "CREATE TABLE PlayerStats (id INTEGER PRIMARY KEY, ...)"
-                // 단순화를 위해 일단 키를 테이블 이름으로 간주합니다.
-
-                if (string.IsNullOrWhiteSpace(tableName))
+                try
                 {
-                    CoreLogger.LogWarning($"[SchemaManager] Skipping entry with empty table name in SQLSchemas.json: {entry.Value}");
-                    continue;
+                    // "CREATE TABLE IF NOT EXISTS" 쿼리이므로, 이미 존재하면 오류 없이 건너뜁니다.
+                    dbAccess.ExecuteNonQuery(tableSchema.CreateQuery);
+                    CoreLogger.Log($"[SchemaManager] Successfully created/ensured table: {tableSchema.Name}");
                 }
-
-                if (m_TableSchemas.ContainsKey(tableName))
+                catch (Exception ex)
                 {
-                    CoreLogger.LogWarning($"[SchemaManager] Duplicate table name '{tableName}' found in SQLSchemas.json. Overwriting.");
+                    CoreLogger.LogError($"[SchemaManager] Failed to create table {tableSchema.Name} with query: {tableSchema.CreateQuery}. Error: {ex.Message}");
+                    // 스키마 초기화는 매우 중요한 단계이므로, 실패 시 애플리케이션을 계속 진행하기 어려울 수 있습니다.
+                    // 따라서 예외를 다시 던져서 상위 호출자가 이 문제를 처리하도록 합니다.
+                    throw new InvalidOperationException($"Failed to initialize database table '{tableSchema.Name}'. See previous errors for details.", ex);
                 }
-
-                // TODO: 여기에서 CREATE TABLE 쿼리를 파싱하여 ColumnSchema 목록을 채워야 합니다.
-                // 현재는 빈 목록으로 초기화합니다.
-                m_TableSchemas[tableName] = new TableSchema
-                {
-                    Name = tableName,
-                    CreateQuery = entry.Value,
-                    Columns = new List<ColumnSchema>() // 실제 파싱 로직 구현 필요
-                };
-                CoreLogger.Log($"[SchemaManager] Loaded schema for table: {tableName}");
             }
-            CoreLogger.Log($"[SchemaManager] Loaded {m_TableSchemas.Count} table schemas.");
+            CoreLogger.Log("[SchemaManager] Database table initialization complete.");
         }
+
 
         /// <summary>
         /// 주어진 테이블 이름이 허용된 스키마에 존재하는지 확인합니다.
@@ -165,7 +202,6 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
 
         /// <summary>
         /// 주어진 테이블에 특정 컬럼 이름이 유효한지 확인합니다.
-        /// (현재는 컬럼 스키마 파싱이 구현되지 않았으므로, 최소한의 안전성 검사만 수행)
         /// </summary>
         /// <param name="tableName">테이블 이름.</param>
         /// <param name="columnName">확인할 컬럼 이름.</param>
@@ -173,24 +209,21 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
         public bool IsColumnNameValid(string tableName, string columnName)
         {
             if (string.IsNullOrWhiteSpace(columnName)) return false;
-            if (!IsTableNameValid(tableName)) return false; // 테이블이 유효하지 않으면 컬럼도 유효할 수 없음
+            if (!m_TableSchemas.TryGetValue(tableName, out var tableSchema)) return false; // 테이블이 유효하지 않으면 컬럼도 유효할 수 없음
 
-            // P17: SQL 식별자 문자열 삽입 취약 - 최소한의 문자열 검사
-            // 컬럼 이름에는 공백, 세미콜론, 따옴표 등을 포함해서는 안 됩니다.
+            // P17: SQL 식별자 문자열 삽입 취약 - 최소한의 문자열 검사 (여전히 중요)
             if (columnName.Any(char.IsWhiteSpace) || columnName.Contains(";") || columnName.Contains("'") || columnName.Contains("\"") || columnName.Contains("--"))
             {
-                CoreLogger.LogWarning($"[SchemaManager] Column name '{columnName}' for table '{tableName}' contains invalid characters.");
+                CoreLogger.LogWarning($"[SchemaManager] Column name '{columnName}' for table '{tableName}' contains invalid characters (pre-check).");
                 return false;
             }
 
-            // TODO: m_TableSchemas[tableName].Columns를 참조하여 실제 컬럼이 존재하는지 확인하는 로직 추가
-            // 현재는 컬럼 스키마를 파싱하지 않으므로, 이 부분은 더미 검사만 합니다.
-            // 이상적으로는 m_TableSchemas[tableName].Columns.Any(c => c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase)) 와 같이 되어야 합니다.
-            return true; // 임시적으로 모든 "안전해 보이는" 컬럼 이름을 허용
+            // 파싱된 컬럼 목록을 참조하여 실제 컬럼이 존재하는지 확인
+            return tableSchema.Columns.Any(c => c.Name.Equals(columnName, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>
-        /// 주어진 테이블의 모든 CREATE TABLE 쿼리 문자열을 반환합니다.
+        /// 모든 테이블의 CREATE TABLE 쿼리 문자열을 반환합니다.
         /// </summary>
         public IEnumerable<string> GetAllTableCreateQueries()
         {
@@ -210,3 +243,4 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
         }
     }
 }
+// --- END OF FILE SchemaManager.cs ---
