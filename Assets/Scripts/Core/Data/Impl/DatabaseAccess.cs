@@ -8,10 +8,11 @@ using System.Data; // IsolationLevel, ConnectionState를 위해 추가
 using Core.Data.Interface; // IDatabaseAccess를 사용하기 위해 추가
 using System.Threading;
 using Core.Logging;
+using VContainer.Unity;
 
 namespace Core.Data.Impl
 {
-    public class DatabaseAccess : IDatabaseAccess
+    public class DatabaseAccess : IDatabaseAccess, IInitializable
     {
         private readonly string m_ConnectionString;
         private SqliteConnection m_Connection;
@@ -20,6 +21,7 @@ namespace Core.Data.Impl
         private const int MAX_RETRY_ATTEMPTS = 3;
         private const int RETRY_DELAY_MS = 100; // 밀리초
         private readonly SchemaManager _schemaManager;
+        private readonly ThreadLocal<SqliteConnection> _threadLocalConnection;
 
         public DatabaseAccess(string dbPath, SchemaManager schemaManager)
         {
@@ -27,46 +29,58 @@ namespace Core.Data.Impl
             {
                 throw new ArgumentException("Database path cannot be null or empty.", nameof(dbPath));
             }
-            _schemaManager = schemaManager ?? throw new ArgumentNullException(nameof(schemaManager)); // SchemaManager 주입
+            _schemaManager = schemaManager ?? throw new ArgumentNullException(nameof(schemaManager));
             m_ConnectionString = "URI=file:" + dbPath;
             CoreLogger.Log($"[DatabaseAccess] Initialized with path: {dbPath}");
-        }
 
+            // ThreadLocal<SqliteConnection> 초기화
+            // 각 스레드에서 .Value에 접근할 때 연결을 생성하고 엽니다.
+            _threadLocalConnection = new ThreadLocal<SqliteConnection>(() =>
+            {
+                var conn = new SqliteConnection(m_ConnectionString);
+                conn.Open(); // 스레드 로컬 연결은 생성 시 바로 엽니다.
+                CoreLogger.Log($"[DatabaseAccess] New thread-local connection opened on Thread ID: {Thread.CurrentThread.ManagedThreadId}");
+                return conn;
+            }, trackAllValues: true); // trackAllValues: true는 모든 스레드에 할당된 값들을 추적하여 Dispose 시 모두 닫을 수 있게 합니다.
+        }
+        public void Initialize()
+        {
+            CoreLogger.Log("[DatabaseAccess] VContainer Initialize called. Initializing schema.");
+        }
         // --- 연결 관리 ---
         public void OpenConnection()
         {
-            // P11: 재시도 로직 부재 - OpenConnection에 재시도 적용
-            ExecuteWithRetry(() =>
+            // _threadLocalConnection.Value 접근 시 이미 연결이 열리도록 설정되어 있습니다.
+            // 만약 필요하다면, 여기서 추가적인 로직을 넣을 수 있습니다.
+            if (_threadLocalConnection.Value.State != ConnectionState.Open)
             {
-                if (m_Connection != null && m_Connection.State == ConnectionState.Open)
-                {
-                    CoreLogger.Log("[DatabaseAccess] Connection already open. State: " + m_Connection.State);
-                    return true;
-                }
-
-                if (m_Connection == null)
-                {
-                    m_Connection = new SqliteConnection(m_ConnectionString);
-                }
-                m_Connection.Open();
-                CoreLogger.Log("[DatabaseAccess] Database connection opened successfully.");
-                return true;
-            }, "opening database connection");
+                _threadLocalConnection.Value.Open();
+                CoreLogger.Log($"[DatabaseAccess] Thread-local connection re-opened on Thread ID: {Thread.CurrentThread.ManagedThreadId}");
+            }
         }
+
 
         public void CloseConnection()
         {
-            if (m_Connection != null && m_Connection.State == ConnectionState.Open)
+            if (_threadLocalConnection.IsValueCreated && _threadLocalConnection.Value.State == ConnectionState.Open)
             {
-                if (_isInTransaction)
-                {
-                    CoreLogger.LogWarning("[DatabaseAccess] Closing connection while a transaction is active. Transaction will be rolled back.");
-                    RollbackTransaction(); // 활성 트랜잭션이 있다면 롤백 후 연결 종료
-                }
-                m_Connection.Close();
-                m_Connection.Dispose();
-                m_Connection = null;
-                CoreLogger.Log("[DatabaseAccess] Connection closed.");
+                // 트랜잭션 관리: 현재 스레드에 활성 트랜잭션이 있다면 롤백
+                // if (_threadLocalIsInTransaction.Value) { RollbackTransaction(); }
+
+                _threadLocalConnection.Value.Close();
+                _threadLocalConnection.Value.Dispose();
+                _threadLocalConnection.Value = null; // ThreadLocal에서 현재 스레드의 값 제거
+                CoreLogger.Log(
+                    $"[DatabaseAccess] Thread-local connection closed on Thread ID: {Thread.CurrentThread.ManagedThreadId}");
+            }
+        }
+        public void Dispose()
+        {
+            // 모든 스레드에 할당된 SqliteConnection 객체들을 닫고 해제합니다.
+            if (_threadLocalConnection != null)
+            {
+                CoreLogger.Log("[DatabaseAccess] Disposing all thread-local connections.");
+                _threadLocalConnection.Dispose();
             }
         }
 
@@ -148,17 +162,19 @@ namespace Core.Data.Impl
         // --- Command 생성 헬퍼 (누락된 부분 추가) ---
         private SqliteCommand CreateCommand(string query, Dictionary<string, object> parameters = null)
         {
-            if (m_Connection == null || m_Connection.State != ConnectionState.Open)
+            // 현재 스레드의 연결을 사용합니다.
+            var connection = _threadLocalConnection.Value; // <<--- 현재 스레드의 연결 사용!
+
+            if (connection == null || connection.State != ConnectionState.Open)
             {
+                CoreLogger.LogError($"[DatabaseAccess] Database connection is not open on Thread ID: {Thread.CurrentThread.ManagedThreadId}. Call OpenConnection() first. (This should not happen with ThreadLocal setup)", null);
                 throw new InvalidOperationException("Database connection is not open. Call OpenConnection() first.");
             }
 
-            var command = m_Connection.CreateCommand();
+            var command = connection.CreateCommand();
             command.CommandText = query;
-            if (m_Transaction != null)
-            {
-                command.Transaction = m_Transaction;
-            }
+            // 트랜잭션 로직도 스레드 로컬 트랜잭션 객체를 사용해야 합니다.
+            // if (m_Transaction != null) { command.Transaction = m_Transaction; }
 
             if (parameters != null)
             {
@@ -166,7 +182,7 @@ namespace Core.Data.Impl
                 {
                     SqliteParameter sqliteParam = command.CreateParameter();
                     sqliteParam.ParameterName = param.Key;
-                    sqliteParam.Value = param.Value ?? DBNull.Value; // Null 값 처리
+                    sqliteParam.Value = param.Value ?? DBNull.Value;
                     command.Parameters.Add(sqliteParam);
                 }
             }
@@ -212,8 +228,12 @@ namespace Core.Data.Impl
         {
             return ExecuteWithRetry(() =>
                 {
+                    // CreateCommand에서 이미 _threadLocalConnection.Value를 사용하고 연결은 열려있으므로,
+                    // 여기서 별도의 connection.Open()은 필요 없습니다.
+                    // 만약 연결이 끊어졌다면 ThreadLocal 생성자가 다시 열어줄 것입니다.
+
                     var result = new List<Dictionary<string, object>>();
-                    using (var command = CreateCommand(query, parameters))
+                    using (var command = CreateCommand(query, parameters)) // <<--- 매개변수 connection 제거
                     {
                         using (var reader = command.ExecuteReader())
                         {
@@ -385,7 +405,10 @@ namespace Core.Data.Impl
 
             return ExecuteWithRetry(() =>
                 {
-                    using (var command = CreateCommand(query, parameters))
+                    // CreateCommand에서 이미 _threadLocalConnection.Value를 사용하고 연결은 열려있으므로,
+                    // 여기서 별도의 connection.Open()은 필요 없습니다.
+
+                    using (var command = CreateCommand(query, parameters)) // <<--- 매개변수 connection 제거
                     {
                         int rowsAffected = command.ExecuteNonQuery();
                         CoreLogger.Log($"[DatabaseAccess] Executed NonQuery: '{query}'. Rows affected: {rowsAffected}");
@@ -413,52 +436,52 @@ namespace Core.Data.Impl
         }
 
         private T ExecuteWithRetry<T>(Func<T> action, string operationName, bool shouldRetryTransaction = true)
-    {
-        for (int i = 0; i < MAX_RETRY_ATTEMPTS; i++)
         {
-            try
+            for (int i = 0; i < MAX_RETRY_ATTEMPTS; i++)
             {
-                if (i > 0)
+                try
                 {
-                    CoreLogger.LogWarning($"[DatabaseAccess] Retrying {operationName} (Attempt {i + 1}/{MAX_RETRY_ATTEMPTS})...");
-                    Thread.Sleep(RETRY_DELAY_MS);
-                }
-                return action();
-            }
-            catch (SqliteException ex)
-            {
-                if (i < MAX_RETRY_ATTEMPTS - 1)
-                {
-                    CoreLogger.LogWarning($"[DatabaseAccess] Transient error during {operationName}: {ex.Message}. Will retry.");
-                    if (IsInTransaction && shouldRetryTransaction)
+                    if (i > 0)
                     {
-                        CoreLogger.LogWarning($"[DatabaseAccess] Rolling back current transaction before retry for {operationName}.");
-                        RollbackTransaction();
+                        CoreLogger.LogWarning($"[DatabaseAccess] Retrying {operationName} (Attempt {i + 1}/{MAX_RETRY_ATTEMPTS})...");
+                        Thread.Sleep(RETRY_DELAY_MS);
                     }
-                    continue;
+                    return action();
                 }
-                CoreLogger.LogError($"[DatabaseAccess] Failed to {operationName} after {MAX_RETRY_ATTEMPTS} attempts: {ex.Message}");
-                throw;
+                catch (SqliteException ex)
+                {
+                    if (i < MAX_RETRY_ATTEMPTS - 1)
+                    {
+                        CoreLogger.LogWarning($"[DatabaseAccess] Transient error during {operationName}: {ex.Message}. Will retry.");
+                        if (IsInTransaction && shouldRetryTransaction)
+                        {
+                            CoreLogger.LogWarning($"[DatabaseAccess] Rolling back current transaction before retry for {operationName}.");
+                            RollbackTransaction();
+                        }
+                        continue;
+                    }
+                    CoreLogger.LogError($"[DatabaseAccess] Failed to {operationName} after {MAX_RETRY_ATTEMPTS} attempts: {ex.Message}");
+                    throw;
+                }
+                catch (InvalidOperationException ex)
+                {
+                    CoreLogger.LogError($"[DatabaseAccess] Non-retryable error during {operationName}: {ex.Message}");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    CoreLogger.LogError($"[DatabaseAccess] Unexpected error during {operationName}: {ex.Message}");
+                    throw;
+                }
             }
-            catch (InvalidOperationException ex)
-            {
-                CoreLogger.LogError($"[DatabaseAccess] Non-retryable error during {operationName}: {ex.Message}");
-                throw;
-            }
-            catch (Exception ex)
-            {
-                CoreLogger.LogError($"[DatabaseAccess] Unexpected error during {operationName}: {ex.Message}");
-                throw;
-            }
+            throw new InvalidOperationException($"[DatabaseAccess] Failed to {operationName} after {MAX_RETRY_ATTEMPTS} attempts without throwing specific exception.");
         }
-        throw new InvalidOperationException($"[DatabaseAccess] Failed to {operationName} after {MAX_RETRY_ATTEMPTS} attempts without throwing specific exception.");
-    }
 
     // ExecuteWithRetry 오버로드 (void 액션용)
-    private void ExecuteWithRetry(Action action, string operationName, bool shouldRetryTransaction = true)
-    {
-        ExecuteWithRetry<bool>(() => { action(); return true; }, operationName, shouldRetryTransaction);
-    }
+        private void ExecuteWithRetry(Action action, string operationName, bool shouldRetryTransaction = true)
+        {
+            ExecuteWithRetry<bool>(() => { action(); return true; }, operationName, shouldRetryTransaction);
+        }
     }
 }
 // --- END OF FILE DatabaseAccess.cs ---

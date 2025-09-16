@@ -15,9 +15,6 @@ namespace Core.Interface
 
         public interface IDialogueService
         {
-            // 초기화 메서드 (필요한 의존성 주입)
-            void Initialize(IGameResourceService gameResourceService, IGameService gameService); // DialogueUIHandler를 인터페이스로 받음
-
             void StartDialogue(string dialogueID);
             void StartDialogue(DialogueData data);
             void RegisterDialogueUI(IDialogueUIHandler uiHandler); // DialogueUIHandler를 인터페이스로 받음

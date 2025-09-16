@@ -8,7 +8,7 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
-using UnityEngine.SceneManagement;
+using UnityEngine.SceneManagement; // SceneManager 사용을 위해 추가
 using UnityEngine.UI;
 
 namespace Core
@@ -20,6 +20,12 @@ namespace Core
 
         private bool _isTransitioning = false;
         public bool IsTransitioning => _isTransitioning;
+
+        // P26: CurrentSceneName 인터페이스 구현
+        /// <summary>
+        /// 현재 활성화된 씬의 이름을 반환합니다.
+        /// </summary>
+        public string CurrentSceneName => SceneManager.GetActiveScene().name; // SceneManager를 통해 현재 씬 이름 가져오기
 
         public event Action<bool> OnTransitionStateChanged;
         public event Action<float> OnLoadingProgress;
@@ -74,57 +80,49 @@ namespace Core
         {
             _isTransitioning = true;
             OnTransitionStateChanged?.Invoke(true);
-            CoreLogger.LogInfo($"[SceneTransitionManager] Scene transition started for '{sceneName}'.", this);
+            CoreLogger.LogInfo($"[SceneTransitionManager] Scene transition started for '{sceneName}'. Current Scene (before load): {CurrentSceneName}", this);
 
             // 전환 실패 여부를 추적하는 플래그
             bool transitionFailed = false;
 
             // --- Fade Out ---
-            // !!! 경고: 만약 StartCoroutine(Fade(1f)) 호출에서 동기적 예외가 발생하면,
-            // 이 코루틴은 여기서 즉시 중단되고 아래의 클린업 코드는 실행되지 않습니다.
-            // _isTransitioning 상태가 'true'로 고정될 수 있습니다.
             yield return StartCoroutine(Fade(1f));
             CoreLogger.LogDebug("[SceneTransitionManager] Fade Out complete.", this);
 
             // --- Addressables를 이용한 Scene Load ---
-            AsyncOperationHandle<SceneInstance> loadSceneHandle = Addressables.LoadSceneAsync(sceneName, LoadSceneMode.Single, false);
+            // activateOnLoad: true로 변경하여 로드 완료 시 씬이 즉시 활성화되도록 합니다.
+            AsyncOperationHandle<SceneInstance> loadSceneHandle = Addressables.LoadSceneAsync(sceneName, LoadSceneMode.Single, true);
 
             while (!loadSceneHandle.IsDone)
             {
                 OnLoadingProgress?.Invoke(loadSceneHandle.PercentComplete);
-                yield return null; // 이 지점에서 발생할 수 있는 동기적 예외(예: OnLoadingProgress 콜백 내부)에도 대비해야 합니다.
+                yield return null;
             }
 
             if (loadSceneHandle.Status == AsyncOperationStatus.Failed)
             {
                 CoreLogger.LogError($"[SceneTransitionManager] Failed to load scene '{sceneName}' using Addressables. Exception: {loadSceneHandle.OperationException?.Message}", this);
                 transitionFailed = true;
-                // 로드 실패 시, 더 이상의 진행 없이 코루틴을 종료하려면 여기에 'yield break;'를 추가할 수 있습니다.
-                // 'yield break;'를 사용하더라도 아래의 클린업 코드는 정상적으로 실행됩니다.
-                // yield break;
             }
             else
             {
-                CoreLogger.LogInfo($"[SceneTransitionManager] Scene '{sceneName}' loaded successfully.", this);
+                CoreLogger.LogInfo($"[SceneTransitionManager] Scene '{sceneName}' loaded and activated successfully. New active scene: {CurrentSceneName}", this);
             }
 
             // --- Fade In (로드 성공 시에만) ---
             if (!transitionFailed && fadeImage != null)
             {
-                // !!! 경고: StartCoroutine(Fade(0f)) 호출에서 동기적 예외가 발생하면,
-                // 이 코루틴은 여기서 즉시 중단되고 아래의 클린업 코드는 실행되지 않습니다.
-                // _isTransitioning 상태가 'true'로 고정될 수 있습니다.
                 yield return StartCoroutine(Fade(0f));
                 CoreLogger.LogDebug("[SceneTransitionManager] Fade In complete.", this);
             }
 
-            // --- 클린업 (코루틴이 끝까지 실행되거나 'yield break'로 정상 종료될 경우 항상 실행됩니다.) ---
-            // 단, 위에서 언급한 것처럼 중간에 *처리되지 않은 동기적 예외*로 인해 코루틴이 강제 종료되면 이 코드는 실행되지 않습니다.
+            // --- 클린업 ---
             _isTransitioning = false;
             OnTransitionStateChanged?.Invoke(false);
-            CoreLogger.LogInfo($"[SceneTransitionManager] Scene transition for '{sceneName}' finished (status: {(transitionFailed ? "Failed" : "Completed")}).", this);
+            CoreLogger.LogInfo($"[SceneTransitionManager] Scene transition for '{sceneName}' finished (status: {(transitionFailed ? "Failed" : "Completed")}). Final active scene: {CurrentSceneName}", this);
 
             // Addressables 핸들 해제에 대한 원래 주석은 그대로 유지합니다.
+            // Addressables.Release(loadSceneHandle); // 필요한 경우 핸들 해제
         }
 
         private IEnumerator Fade(float targetAlpha)

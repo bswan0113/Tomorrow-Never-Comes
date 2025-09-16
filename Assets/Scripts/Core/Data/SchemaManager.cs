@@ -46,7 +46,7 @@ namespace Core.Data // 새로운 네임스페이스 (혹은 기존 Core.Interfac
         /// SQLSchemas.json 파일에서 스키마 정보를 로드하고 파싱합니다.
         /// 이 메서드는 생성자에서 호출됩니다.
         /// </summary>
-                private void LoadSchemasInternal()
+        private void LoadSchemasInternal()
         {
             TextAsset sqlJson = Resources.Load<TextAsset>("SQLSchemas");
             if (sqlJson == null)

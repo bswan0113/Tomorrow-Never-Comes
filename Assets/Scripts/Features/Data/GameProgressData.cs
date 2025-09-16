@@ -27,7 +27,7 @@ namespace Features.Data
         {
             SaveSlotID = 1; // 기본 세이브 슬롯 ID
             CurrentDay = 1;
-            LastSceneName = "StartScene"; // 시작 씬 이름 (기획에 따라 변경)
+            LastSceneName = "PlayerRoom"; // 시작 씬 이름 (기획에 따라 변경)
             SaveDateTime = DateTime.UtcNow; // 현재 UTC 시간으로 초기화
         }
     }

@@ -1,147 +1,134 @@
-// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Features\Player\PlayerDataManager.cs
+// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Features\Player\PlayerDataManager.cs (최종 수정 권장)
 
 using System;
+using System.Threading.Tasks;
 using Core.Data.Interface;
 using Core.Interface;
 using Core.Logging;
 using UnityEngine;
+using VContainer; // VContainer의 Inject 속성을 사용하기 위해 추가
 
 namespace Features.Player
 {
-    public class PlayerDataManager : MonoBehaviour,IPlayerService // IPlayerService 인터페이스 구현 추가
+    public class PlayerDataManager : MonoBehaviour, IPlayerService
     {
-        // public static PlayerDataManager Instance { get; private set; } // <- 제거
+        private IPlayerStatsRepository _playerStatsRepository; // readonly 제거 (Construct 메서드에서 할당)
 
-        // 의존성 주입을 위한 필드
-        private IDataService _dataService;
+        private PlayerStatsData m_currentPlayerStats;
 
-        // IPlayerService 인터페이스 구현을 위한 프로퍼티와 이벤트
-        public PlayerStatsData StatsData { get; private set; } // IPlayerService에 추가 필요
-        public event Action OnPlayerStatusChanged; // IPlayerService에 추가 필요 (static 제거)
+        public event Action OnPlayerStatsChanged;
 
+        // MonoBehaviour는 기본적으로 매개변수 없는 생성자를 요구합니다.
+        // VContainer를 통해 인스턴스화되거나 씬에 미리 배치된 경우,
+        // 아래의 [Inject] Construct 메서드를 통해 의존성이 주입됩니다.
+        public PlayerDataManager() { } // Unity가 호출할 기본 생성자 (필요시)
 
-
-        // 컴포지션 루트에서 호출될 초기화 함수 (IDataService를 주입받음)
-        public void Initialize(IDataService dataService)
+        // VContainer를 통해 의존성을 주입받는 메서드입니다.
+        // Construct라는 이름은 관례이며, 다른 이름을 사용해도 됩니다.
+        [Inject] // VContainer가 이 메서드를 호출하여 의존성을 주입합니다.
+        public void Construct(IPlayerStatsRepository repository)
         {
-            _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
+            _playerStatsRepository = repository ?? throw new ArgumentNullException(nameof(repository));
+            CoreLogger.Log("[PlayerDataManager] Initialized via VContainer [Inject] Construct method.");
 
-            LoadPlayerData(); // DataManager가 준비된 후 호출됩니다.
-            CoreLogger.Log($"<color=lightblue>[PlayerDataManager] 초기화 완료. 현재 지능: {StatsData.Intellect}</color>");
+            // 초기 플레이어 스탯 로드 시작. Construct는 비동기가 아니므로 await 없이 Task를 시작합니다.
+            _ = LoadPlayerDataAsync();
         }
 
-        public void Initialize()
-        {
-            LoadPlayerData(); // DataManager가 준비된 후 호출됩니다.
-        }
+        // 기존 Initialize 메서드는 Construct로 통합되었으므로 제거합니다.
+        // public void Initialize(IPlayerStatsRepository repository) { ... }
 
-
-        /// <summary>
-        /// DataManager를 통해 데이터베이스에서 모든 플레이어 정보를 로드합니다.
-        /// </summary>
-        public void LoadPlayerData()
+        public PlayerStatsData GetCurrentPlayerStats()
         {
-            if (_dataService == null)
+            if (m_currentPlayerStats == null)
             {
-                CoreLogger.LogError("PlayerDataManager: IDataService가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
+                m_currentPlayerStats = new PlayerStatsData();
+                CoreLogger.LogWarning("[PlayerDataManager] PlayerStatsData was null, initialized with default values.");
+            }
+            return m_currentPlayerStats;
+        }
+
+        public void AddIntellect(int Intellect)
+        {
+            if (m_currentPlayerStats == null) GetCurrentPlayerStats();
+            m_currentPlayerStats.Intellect += Intellect;
+            CoreLogger.Log($"[PlayerDataManager] Intellect updated to: {m_currentPlayerStats.Intellect}");
+            OnPlayerStatsChanged?.Invoke();
+        }
+
+        public void AddCharm(int charm)
+        {
+            if (m_currentPlayerStats == null) GetCurrentPlayerStats();
+            m_currentPlayerStats.Charm += charm;
+            CoreLogger.Log($"[PlayerDataManager] Charm updated to: {m_currentPlayerStats.Charm}");
+            OnPlayerStatsChanged?.Invoke();
+        }
+
+        public void AddMoney(long amount)
+        {
+            if (m_currentPlayerStats == null) GetCurrentPlayerStats();
+            m_currentPlayerStats.Money += amount;
+            CoreLogger.Log($"[PlayerDataManager] Money updated to: {m_currentPlayerStats.Money}");
+            OnPlayerStatsChanged?.Invoke();
+        }
+
+        public async Task LoadPlayerDataAsync()
+        {
+            if (_playerStatsRepository == null) // Construct가 호출되기 전에 호출될 경우 대비
+            {
+                CoreLogger.LogError("[PlayerDataManager] Repository is not initialized. Cannot load player data.");
+                m_currentPlayerStats = new PlayerStatsData(); // 기본값으로 초기화
+                OnPlayerStatsChanged?.Invoke();
                 return;
             }
 
-            if (_dataService.HasSaveData) // 주입받은 _dataService 사용
+            CoreLogger.Log("[PlayerDataManager] Attempting to load player data...");
+            try
             {
-                var data = _dataService.LoadData("PlayerStats", "SaveSlotID", 1); // 주입받은 _dataService 사용
-                if (data != null && data.Count > 0)
+                m_currentPlayerStats = await _playerStatsRepository.LoadPlayerStatsAsync(1);
+                if (m_currentPlayerStats != null)
                 {
-                    var row = data[0];
-                    StatsData = new PlayerStatsData
-                    {
-                        Intellect = Convert.ToInt32(row["Intellect"]),
-                        Charm = Convert.ToInt32(row["Charm"]),
-                        Endurance = Convert.ToInt32(row["Endurance"]),
-                        Money = (long)row["Money"],
-                        HeroineALiked = Convert.ToInt32(row["HeroineALiked"]),
-                        HeroineBLiked = Convert.ToInt32(row["HeroineBLiked"]),
-                        HeroineCLiked = Convert.ToInt32(row["HeroineCLiked"]),
-                    };
-                    CoreLogger.Log("플레이어 데이터를 DB에서 로드했습니다.");
+                    CoreLogger.Log($"[PlayerDataManager] Player data loaded for SlotID {m_currentPlayerStats.SaveSlotID}. Intellect: {m_currentPlayerStats.Intellect}, Money: {m_currentPlayerStats.Money}");
                 }
                 else
                 {
-                    CoreLogger.LogError("세이브 데이터 플래그는 있으나, PlayerStats 테이블에서 데이터를 가져오지 못했습니다. 새 데이터로 시작합니다.");
-                    InitializeNewPlayerData();
+                    m_currentPlayerStats = new PlayerStatsData();
+                    CoreLogger.Log("[PlayerDataManager] No existing player data found, created new default data.");
                 }
+                OnPlayerStatsChanged?.Invoke();
             }
-            else
+            catch (Exception ex)
             {
-                CoreLogger.Log("세이브 데이터가 없습니다. 새로운 플레이어 데이터를 생성합니다.");
-                InitializeNewPlayerData();
+                CoreLogger.LogError($"[PlayerDataManager] Error loading player data: {ex.Message}. Initializing with default data.");
+                m_currentPlayerStats = new PlayerStatsData();
+                OnPlayerStatsChanged?.Invoke();
             }
         }
 
-        /// <summary>
-        /// 새 게임을 위한 기본 스탯으로 PlayerData를 초기화하고 DB에 저장합니다.
-        /// </summary>
-        private void InitializeNewPlayerData()
+        public async Task SavePlayerDataAsync()
         {
-            if (_dataService == null)
+            if (_playerStatsRepository == null) // Construct가 호출되기 전에 호출될 경우 대비
             {
-                CoreLogger.LogError("PlayerDataManager: IDataService가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
+                CoreLogger.LogError("[PlayerDataManager] Repository is not initialized. Cannot save player data.");
                 return;
             }
-            StatsData = new PlayerStatsData();
-            _dataService.InsertData( // <- SaveData 대신 InsertData로 변경
-                "PlayerStats",
-                new string[] { "SaveSlotID", "Intellect", "Charm", "Endurance", "Money", "HeroineALiked", "HeroineBLiked", "HeroineCLiked" },
-                new object[] { 1, StatsData.Intellect, StatsData.Charm, StatsData.Endurance, StatsData.Money, StatsData.HeroineALiked, StatsData.HeroineBLiked, StatsData.HeroineCLiked }
-            );
-        }
 
-        /// <summary>
-        /// 현재 스탯을 DB에 저장(UPDATE)합니다. (IPlayerService 인터페이스 메서드 구현)
-        /// </summary>
-        public void SavePlayerData() // IPlayerService에 이 메서드가 정의되어 있어야 함
-        {
-            if (_dataService == null)
+            if (m_currentPlayerStats == null)
             {
-                CoreLogger.LogError("PlayerDataManager: IDataService가 초기화되지 않았습니다. Initialize()를 먼저 호출해주세요.");
-                return;
+                CoreLogger.LogWarning("[PlayerDataManager] Attempted to save null player data. Initializing with default.");
+                m_currentPlayerStats = new PlayerStatsData();
             }
-            if (StatsData == null) return;
-
-            _dataService.UpdateData( // 주입받은 _dataService 사용
-                "PlayerStats",
-                new string[] { "Intellect", "Charm", "Endurance", "Money", "HeroineALiked", "HeroineBLiked", "HeroineCLiked" },
-                new object[] { StatsData.Intellect, StatsData.Charm, StatsData.Endurance, StatsData.Money, StatsData.HeroineALiked, StatsData.HeroineBLiked, StatsData.HeroineCLiked },
-                "SaveSlotID",
-                1
-            );
-            CoreLogger.Log("플레이어 데이터를 DB에 저장(업데이트)했습니다.");
-        }
-
-        // --- 외부에서 스탯을 안전하게 변경하기 위한 메서드들 ---
-
-        public void AddIntellect(int amount)
-        {
-            StatsData.Intellect += amount;
-            NotifyStatusChanged();
-            CoreLogger.Log($"지능 스탯 {amount} 증가! 현재 지능: {StatsData.Intellect}");
-        }
-
-        public void AddCharm(int amount)
-        {
-            StatsData.Charm += amount;
-            NotifyStatusChanged();
-        }
-
-        // ... (다른 스탯 변경 메서드들도 필요에 따라 추가) ...
-
-        /// <summary>
-        /// 스탯 변경이 있음을 게임 전체에 알립니다. (UI 업데이트 등)
-        /// </summary>
-        private void NotifyStatusChanged()
-        {
-            // OnPlayerStatusChanged?.Invoke(); // 이제 static이 아니므로 직접 호출
-            OnPlayerStatusChanged?.Invoke(); // 수정: static 이벤트가 아니므로, this.OnPlayerStatusChanged?.Invoke() 가 더 명확하지만, 그냥 OnPlayerStatusChanged?.Invoke()도 동일하게 동작.
+            CoreLogger.Log($"[PlayerDataManager] Saving player data for SlotID {m_currentPlayerStats.SaveSlotID}...");
+            try
+            {
+                await _playerStatsRepository.SavePlayerStatsAsync(m_currentPlayerStats);
+                CoreLogger.Log("[PlayerDataManager] Player data saved successfully.");
+                OnPlayerStatsChanged?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                CoreLogger.LogError($"[PlayerDataManager] Failed to save player data: {ex.Message}");
+            }
         }
     }
 }

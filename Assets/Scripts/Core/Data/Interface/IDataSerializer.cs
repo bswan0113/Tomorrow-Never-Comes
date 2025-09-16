@@ -1,33 +1,31 @@
-// --- START OF FILE IDataSerializer.cs ---
+// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Core\Data\Interface\IDataSerializer.cs
 
 using System.Collections.Generic;
 
-namespace Core.Data.Interface // Core.Interface 네임스페이스에 포함
+namespace Core.Data.Interface
 {
     /// <summary>
-    /// 게임 데이터 객체를 Dictionary 형태로 직렬화하고, Dictionary에서 객체로 역직렬화하는 기능을 정의합니다.
-    /// DataManager가 특정 게임 데이터를 직접 다루는 대신, 이 인터페이스를 통해 데이터를 변환합니다.
+    /// 특정 데이터 타입 T를 Dictionary 형태로 직렬화하고 역직렬화하는 기능을 제공하는 인터페이스입니다.
+    /// IBaseDataSerializer를 상속하여 테이블 및 주 키 정보를 공통으로 제공합니다.
     /// </summary>
-    public interface IDataSerializer<T> : IBaseDataSerializer where T : class // IBaseDataSerializer 상속 추가
+    /// <typeparam name="T">직렬화/역직렬화할 데이터 타입 (클래스여야 함).</typeparam>
+    public interface IDataSerializer<T> : IBaseDataSerializer where T : class
     {
         /// <summary>
-        /// 게임 데이터 객체를 데이터베이스 저장을 위한 Dictionary<string, object> 형태로 직렬화합니다.
+        /// 데이터 객체를 데이터베이스 저장을 위한 Dictionary 형태로 직렬화합니다.
         /// </summary>
-        /// <param name="data">직렬화할 게임 데이터 객체.</param>
-        /// <returns>데이터베이스 저장을 위한 Dictionary 형태의 데이터.</returns>
+        /// <param name="data">직렬화할 데이터 객체.</param>
+        /// <returns>컬럼 이름과 값의 쌍으로 이루어진 Dictionary.</returns>
         Dictionary<string, object> Serialize(T data);
 
         /// <summary>
-        /// 데이터베이스에서 로드된 Dictionary<string, object> 형태의 데이터를
-        /// 게임 데이터 객체로 역직렬화합니다.
+        /// 데이터베이스에서 로드된 Dictionary를 데이터 객체로 역직렬화합니다.
         /// </summary>
-        /// <param name="dataMap">데이터베이스에서 로드된 Dictionary 형태의 데이터.</param>
-        /// <returns>역직렬화된 게임 데이터 객체. 역직렬화 실패 또는 데이터가 없는 경우 null을 반환할 수 있습니다.</returns>
+        /// <param name="dataMap">데이터베이스에서 로드된 Dictionary.</param>
+        /// <returns>역직렬화된 데이터 객체.</returns>
         T Deserialize(Dictionary<string, object> dataMap);
 
-        // GetTableName, GetPrimaryKeyColumnName, GetPrimaryKeyDefaultValue는 IBaseDataSerializer로 이동했으므로
-        // 이 인터페이스에서는 제거할 수 있습니다. (하지만 구현 클래스에서는 여전히 구현해야 함)
-        // 명시적으로 여기에 다시 선언하지 않아도 됩니다.
+        // GetTableName(), GetPrimaryKeyColumnName(), GetPrimaryKeyDefaultValue()는
+        // IBaseDataSerializer에서 이미 정의되었으므로 여기서는 제거합니다.
     }
 }
-// --- END OF FILE IDataSerializer.cs ---

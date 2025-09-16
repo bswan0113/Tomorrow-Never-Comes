@@ -1,4 +1,6 @@
-using Core.Data.Interface;
+// --- START OF FILE GameProgressSerializer.txt ---
+
+using Core.Data.Interface; // IDataSerializer 인터페이스를 Core.Data.Interface 네임스페이스에서 가져오도록 수정
 using Core.Logging;
 using Features.Data;
 
@@ -10,7 +12,7 @@ namespace Core.Util
 
 using System;
 using System.Collections.Generic;
-using Core.Interface; // IDataSerializer 인터페이스를 사용하기 위해 필요
+// using Core.Interface; // 이 using은 Core.Data.Interface로 대체됨
 
 /// <summary>
 /// GameProgressData 객체를 Dictionary 형태로 직렬화하고 역직렬화하는 클래스입니다.

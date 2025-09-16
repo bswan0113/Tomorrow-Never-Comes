@@ -1,27 +1,25 @@
-// --- START OF FILE IBaseDataSerializer.cs ---
-
-using System.Collections.Generic;
+// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Core\Data\Interface\IBaseDataSerializer.cs
 
 namespace Core.Data.Interface
 {
     /// <summary>
-    /// 모든 IDataSerializer<T>가 공통적으로 구현해야 하는 비-제네릭 멤버들을 정의하는
-    /// 기본 인터페이스입니다. 이를 통해 IDataSerializer<T> 타입들을 묶어서 관리할 수 있습니다.
+    /// 모든 데이터 시리얼라이저가 공통적으로 가져야 할 기본 정보 접근 인터페이스입니다.
+    /// VContainer 또는 내부적으로 시리얼라이저를 타입 불문하고 관리할 때 사용됩니다.
     /// </summary>
     public interface IBaseDataSerializer
     {
         /// <summary>
-        /// 해당 데이터 타입이 사용하는 테이블 이름을 반환합니다.
+        /// 이 시리얼라이저가 다루는 데이터 타입이 저장될 테이블 이름을 반환합니다.
         /// </summary>
         string GetTableName();
 
         /// <summary>
-        /// 데이터가 저장될 때 고유하게 식별할 키 컬럼의 이름을 반환합니다.
+        /// 테이블의 주 키 컬럼 이름을 반환합니다.
         /// </summary>
         string GetPrimaryKeyColumnName();
 
         /// <summary>
-        /// 데이터가 저장될 때 고유하게 식별할 키 컬럼의 기본 값을 반환합니다.
+        /// 주 키의 기본값 (예: 단일 세이브 슬롯 게임의 경우 1)을 반환합니다.
         /// </summary>
         object GetPrimaryKeyDefaultValue();
     }

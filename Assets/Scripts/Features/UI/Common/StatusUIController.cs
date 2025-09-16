@@ -42,7 +42,7 @@ namespace Features.UI.Common
 
             if (_playerService != null)
             {
-                _playerService.OnPlayerStatusChanged -= UpdatePlayerStatsUI;
+                _playerService.OnPlayerStatsChanged -= UpdatePlayerStatsUI;
                 CoreLogger.LogDebug("[StatusUIController] PlayerService 이벤트 구독 해제.");
             }
         }
@@ -65,7 +65,7 @@ namespace Features.UI.Common
 
             if (_playerService != null)
             {
-                _playerService.OnPlayerStatusChanged += UpdatePlayerStatsUI;
+                _playerService.OnPlayerStatsChanged += UpdatePlayerStatsUI;
                 CoreLogger.LogDebug("[StatusUIController] PlayerService 이벤트 구독.");
             }
             else
@@ -105,19 +105,19 @@ namespace Features.UI.Common
 
         private void UpdatePlayerStatsUI()
         {
-            if (_playerService == null || _playerService.StatsData == null)
+            if (_playerService == null || _playerService.GetCurrentPlayerStats() == null)
             {
                 return;
             }
 
             if (intellectText != null)
             {
-                intellectText.text = $"지능: {_playerService.StatsData.Intellect}";
+                intellectText.text = $"지능: {_playerService.GetCurrentPlayerStats().Intellect}";
             }
 
             if (charmText != null)
             {
-                charmText.text = $"매력: {_playerService.StatsData.Charm}";
+                charmText.text = $"매력: {_playerService.GetCurrentPlayerStats().Charm}";
             }
         }
     }

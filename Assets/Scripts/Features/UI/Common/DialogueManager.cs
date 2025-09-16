@@ -68,14 +68,16 @@ namespace Features.UI.Common
         /// DialogueManager를 초기화하고 필요한 서비스들을 주입합니다.
         /// VContainer 라이프사이클의 적절한 지점(예: SceneLifetimeScope)에서 호출되어야 합니다.
         /// </summary>
-        public void Initialize(IGameResourceService gameResourceService, IGameService gameService)
+        [Inject] // VContainer가 이 메서드를 호출하여 의존성을 주입합니다.
+        public void Construct(IGameResourceService gameResourceService, IGameService gameService)
         {
             _gameResourceService = gameResourceService ?? throw new ArgumentNullException(nameof(gameResourceService));
             _gameService = gameService ?? throw new ArgumentNullException(nameof(gameService));
+            CoreLogger.Log("[DialogueManager] Initialized via VContainer [Inject] Construct method.");
 
-            CoreLogger.LogDebug("[DialogueManager] 초기화 완료.");
+            // 초기화 로직 (필요하다면 여기에 추가)
+            // 예: _gameResourceService.LoadDialogueAssets();
         }
-
         void Awake()
         {
             dialogueQueue = new Queue<DialogueLine>();

@@ -21,13 +21,13 @@ public class StatCheckCondition : BaseCondition
 
     public override bool IsMet()
     {
-        if (playerService == null || playerService.StatsData == null)
+        if (playerService == null || playerService.GetCurrentPlayerStats() == null)
         {
             CoreLogger.LogError("[StatCheckCondition] PlayerDataManager 또는 PlayerStatus가 초기화되지 않았습니다.");
             return false;
         }
 
-        var playerStatus = playerService.StatsData;
+        var playerStatus = playerService.GetCurrentPlayerStats();
         var propertyInfo = typeof(PlayerStatsData).GetProperty(targetStatName);
 
         if (propertyInfo == null)

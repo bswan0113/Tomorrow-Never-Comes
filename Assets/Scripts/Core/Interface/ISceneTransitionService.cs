@@ -28,5 +28,7 @@ namespace Core.Interface
         /// </summary>
         /// <param name="sceneName">로드할 씬의 이름입니다.</param>
         void FadeAndLoadScene(string sceneName);
+
+        string CurrentSceneName {get;}
     }
 }
