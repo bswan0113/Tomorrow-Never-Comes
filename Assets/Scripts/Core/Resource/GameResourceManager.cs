@@ -1,5 +1,6 @@
 // C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Core\Resource\GameResourceManager.cs
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks; // Task 사용을 위해 추가
@@ -14,7 +15,7 @@ using UnityEngine.ResourceManagement.AsyncOperations; // AsyncOperationHandle을
 namespace Core.Resource
 {
     // IGameResourceService 인터페이스 구현 추가 (현재 인터페이스는 변경이 필요 없음)
-    public class GameResourceManager : MonoBehaviour, IGameResourceService
+    public class GameResourceManager :  IGameResourceService, IDisposable
     {
         // Addressables를 통해 로드된 데이터를 관리할 딕셔너리
         private Dictionary<string, GameData> _gameDatabase;
@@ -41,7 +42,7 @@ namespace Core.Resource
 
             if (loadContainersHandle.Status != AsyncOperationStatus.Succeeded)
             {
-                CoreLogger.LogError($"[GameResourceManager] DataImportContainer 로드 실패! {loadContainersHandle.OperationException?.Message}", this);
+                CoreLogger.LogError($"[GameResourceManager] DataImportContainer 로드 실패! {loadContainersHandle.OperationException?.Message}");
                 // 실패 시 초기화 중단
                 return;
             }
@@ -53,13 +54,13 @@ namespace Core.Resource
             {
                 if (container == null)
                 {
-                    CoreLogger.LogWarning("[GameResourceManager] 로드된 DataImportContainer 중 null 항목이 있습니다. 건너뜜.", this);
+                    CoreLogger.LogWarning("[GameResourceManager] 로드된 DataImportContainer 중 null 항목이 있습니다. 건너뜜.");
                     continue;
                 }
 
                 if (container.importedObjects == null)
                 {
-                    CoreLogger.LogWarning($"[GameResourceManager] DataImportContainer '{container.name}'에 importedObjects 목록이 null입니다. 건너뜜.", this);
+                    CoreLogger.LogWarning($"[GameResourceManager] DataImportContainer '{container.name}'에 importedObjects 목록이 null입니다. 건너뜜.");
                     continue;
                 }
 
@@ -67,7 +68,7 @@ namespace Core.Resource
                 {
                     if (obj == null)
                     {
-                        CoreLogger.LogWarning($"[GameResourceManager] DataImportContainer '{container.name}'의 importedObjects 목록에 null 항목이 있습니다. 건너뜜.", this);
+                        CoreLogger.LogWarning($"[GameResourceManager] DataImportContainer '{container.name}'의 importedObjects 목록에 null 항목이 있습니다. 건너뜜.");
                         continue;
                     }
                     if (obj is GameData gameData)
@@ -76,7 +77,7 @@ namespace Core.Resource
                     }
                     else
                     {
-                        CoreLogger.LogWarning($"[GameResourceManager] DataImportContainer '{container.name}'에서 GameData 타입이 아닌 오브젝트 발견: {obj.name} (Type: {obj.GetType()})", this);
+                        CoreLogger.LogWarning($"[GameResourceManager] DataImportContainer '{container.name}'에서 GameData 타입이 아닌 오브젝트 발견: {obj.name} (Type: {obj.GetType()})");
                     }
                 }
             }
@@ -90,12 +91,12 @@ namespace Core.Resource
             {
                 foreach (var duplicateId in duplicates)
                 {
-                    CoreLogger.LogError($"[GameResourceManager] 중복된 ID({duplicateId})가 존재합니다! CSV 파일을 확인해주세요.", this);
+                    CoreLogger.LogError($"[GameResourceManager] 중복된 ID({duplicateId})가 존재합니다! CSV 파일을 확인해주세요.");
                 }
             }
 
             _gameDatabase = allData.ToDictionary(data => data.id, data => data);
-            CoreLogger.LogInfo($"<color=cyan>{_gameDatabase.Count}개의 게임 데이터를 로드했습니다.</color>", this);
+            CoreLogger.LogInfo($"<color=cyan>{_gameDatabase.Count}개의 게임 데이터를 로드했습니다.</color>");
             CoreLogger.LogInfo("[GameResourceManager] 초기화 완료 및 데이터 로드 완료.");
         }
 
@@ -106,7 +107,7 @@ namespace Core.Resource
         {
             if (_gameDatabase == null)
             {
-                CoreLogger.LogError("GameResourceManager: _gameDatabase가 초기화되지 않았습니다. InitializeAsync()를 먼저 호출해주세요.", this);
+                CoreLogger.LogError("GameResourceManager: _gameDatabase가 초기화되지 않았습니다. InitializeAsync()를 먼저 호출해주세요.");
                 return null;
             }
 
@@ -118,12 +119,12 @@ namespace Core.Resource
                 }
                 else
                 {
-                    CoreLogger.LogWarning($"ID '{id}'의 데이터는 존재하지만, 요청한 타입({typeof(T).Name})이 아닙니다. 실제 타입: {data.GetType().Name}", this);
+                    CoreLogger.LogWarning($"ID '{id}'의 데이터는 존재하지만, 요청한 타입({typeof(T).Name})이 아닙니다. 실제 타입: {data.GetType().Name}");
                     return null;
                 }
             }
 
-            CoreLogger.LogWarning($"요청한 ID '{id}'를 가진 데이터를 찾을 수 없습니다!", this);
+            CoreLogger.LogWarning($"요청한 ID '{id}'를 가진 데이터를 찾을 수 없습니다!");
             return null;
         }
 
@@ -132,28 +133,28 @@ namespace Core.Resource
         {
             if (_gameDatabase == null)
             {
-                CoreLogger.LogError("GameResourceManager: _gameDatabase가 초기화되지 않았습니다. InitializeAsync()를 먼저 호출해주세요.", this);
+                CoreLogger.LogError("GameResourceManager: _gameDatabase가 초기화되지 않았습니다. InitializeAsync()를 먼저 호출해주세요.");
                 return new T[0];
             }
             return _gameDatabase.Values.OfType<T>().ToArray();
         }
 
         // --- P1: 리소스 메모리/로딩 비효율 해결을 위한 Addressables 리소스 해제 ---
-        private void OnDestroy()
+
+        public void Dispose()
         {
-            CoreLogger.LogInfo("[GameResourceManager] OnDestroy 호출. Addressables 리소스 해제 시도...", this);
+            if (_loadedHandles == null) return;
+
+            CoreLogger.LogInfo("[GameResourceManager] Dispose 호출. Addressables 리소스 해제 시도...");
             foreach (var handle in _loadedHandles)
             {
-                // 핸들이 유효하고 아직 해제되지 않았을 경우에만 Release
-                if (handle.IsValid() && handle.Status != AsyncOperationStatus.None)
+                if (handle.IsValid())
                 {
                     Addressables.Release(handle);
-                    CoreLogger.LogDebug($"[GameResourceManager] Addressables 핸들 해제: {handle.DebugName}", this);
                 }
             }
             _loadedHandles.Clear();
             _gameDatabase?.Clear();
-            CoreLogger.LogInfo("[GameResourceManager] Addressables 리소스 해제 완료.", this);
         }
     }
 }

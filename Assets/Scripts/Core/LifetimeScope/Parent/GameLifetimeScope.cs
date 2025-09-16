@@ -21,23 +21,22 @@ namespace Core.LifetimeScope.Parent
 {
     public class GameLifetimeScope : VContainer.Unity.LifetimeScope
     {
-        [Header("Core Components")]
-        [SerializeField] private SceneTransitionManager sceneTransitionManager;
-        [SerializeField] private GameResourceManager gameResourceManager;
-        // [SerializeField] private DataManager dataManager; // DataManager는 VContainer를 통해 Resolve됩니다.
-        [SerializeField] private PlayerDataManager playerDataManager;
-
-        [Header("UI Components")]
-        [SerializeField] private DialogueManager dialogueManager;
-
         protected override void Configure(IContainerBuilder builder)
         {
             DontDestroyOnLoad(gameObject);
 
             // --- 1. 핵심 관리자 및 서비스 등록 (VContainer가 관리할 GameObject 컴포넌트)
-            builder.RegisterComponent(gameResourceManager).As<IGameResourceService>();
-            builder.RegisterComponent(sceneTransitionManager).As<ISceneTransitionService>();
-            builder.RegisterComponent(dialogueManager).As<IDialogueService>();
+            builder.Register<GameResourceManager>(Lifetime.Singleton)
+                .AsSelf() // GameResourceManager 타입으로 주입받기 위함
+                .AsImplementedInterfaces();
+            builder.Register<SceneTransitionManager>(Lifetime.Singleton)
+                .AsSelf() // GameResourceManager 타입으로 주입받기 위함
+                .AsImplementedInterfaces();
+            builder.RegisterComponentInHierarchy<SceneTransitionView>();
+            builder.Register<DialogueManager>(Lifetime.Singleton)
+                .AsSelf() // GameResourceManager 타입으로 주입받기 위함
+                .AsImplementedInterfaces();
+            builder.RegisterComponentInHierarchy<DialogueSystemUpdater>();
 
             // --- 2. 스키마 관리자 등록 (C# 클래스)
             // SchemaManager는 데이터베이스 스키마 정의를 관리하며, DatabaseAccess에 주입됩니다.
@@ -70,8 +69,9 @@ namespace Core.LifetimeScope.Parent
                    .AsSelf();
 
             // --- 6. PlayerDataManager 등록 (MonoBehaviour 컴포넌트)
-            builder.RegisterComponent(playerDataManager)
-                .As<IPlayerService>();
+            builder.Register<PlayerDataManager>(Lifetime.Singleton)
+                .AsSelf() // GameResourceManager 타입으로 주입받기 위함
+                .AsImplementedInterfaces();
 
             // --- 7. 이전의 RegisterBuildCallback을 통한 수동 초기화 제거 (잘 하셨습니다)
 
