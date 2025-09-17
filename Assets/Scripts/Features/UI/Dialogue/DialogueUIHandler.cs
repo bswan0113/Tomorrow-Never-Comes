@@ -1,8 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using Core.Interface;
-using Core.Interface.Core.Interface;
-// 'Core.Interface.Core.Interface' 대신 올바른 네임스페이스 사용
 using Core.Logging;
 using ScriptableObjects.Data;
 using TMPro;

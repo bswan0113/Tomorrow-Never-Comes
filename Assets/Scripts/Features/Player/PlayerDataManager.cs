@@ -5,14 +5,17 @@ using System.Threading.Tasks;
 using Core.Data.Interface;
 using Core.Interface;
 using Core.Logging;
-using VContainer; // VContainer의 Inject 속성
-using VContainer.Unity; // IAsyncStartable
-using Cysharp.Threading.Tasks; // UniTask
+using VContainer;
+using VContainer.Unity;
+using Cysharp.Threading.Tasks;
 
 namespace Features.Player
 {
-    // MonoBehaviour 제거, IAsyncStartable 구현 (비동기 초기화를 위해)
-    public class PlayerDataManager : IPlayerService, IAsyncStartable
+    /// <summary>
+    /// 플레이어의 스탯 데이터를 메모리에서 관리하고, 로드 및 변경 로직을 처리합니다.
+    /// 데이터 저장은 DataManager를 통해 이루어지므로, 저장 책임은 없습니다.
+    /// </summary>
+    public class PlayerDataManager : IPlayerService
     {
         private readonly IPlayerStatsRepository _playerStatsRepository;
 
@@ -20,7 +23,6 @@ namespace Features.Player
 
         public event Action OnPlayerStatsChanged;
 
-        // 생성자 주입 방식으로 변경
         [Inject]
         public PlayerDataManager(IPlayerStatsRepository repository)
         {
@@ -28,17 +30,21 @@ namespace Features.Player
             CoreLogger.Log("[PlayerDataManager] Constructed via VContainer constructor injection.");
         }
 
-        // VContainer가 모든 주입이 끝난 후 호출하는 비동기 초기화 메서드
-        public async UniTask StartAsync(System.Threading.CancellationToken cancellation)
-        {
-            // Construct 메서드에 있던 초기 로딩 로직을 이곳으로 이동
-            await LoadPlayerDataAsync();
-        }
+        // public async UniTask StartAsync(System.Threading.CancellationToken cancellation)
+        // {
+        //     // 게임 시작 시 자신의 상태를 초기화하기 위해 데이터를 로드합니다.
+        //     await LoadPlayerDataAsync();
+        // }
 
+        /// <summary>
+        /// 현재 메모리에 있는 PlayerStatsData를 반환합니다.
+        /// DataManager가 저장을 위해 이 메서드를 호출할 것입니다.
+        /// </summary>
         public PlayerStatsData GetCurrentPlayerStats()
         {
             if (m_currentPlayerStats == null)
             {
+                // 로드가 실패했거나 데이터가 없는 경우, 기본값으로 새 인스턴스를 생성합니다.
                 m_currentPlayerStats = new PlayerStatsData();
                 CoreLogger.LogWarning("[PlayerDataManager] PlayerStatsData was null, initialized with default values.");
             }
@@ -69,12 +75,15 @@ namespace Features.Player
             OnPlayerStatsChanged?.Invoke();
         }
 
+        /// <summary>
+        /// Repository를 통해 PlayerStatsData를 비동기적으로 로드합니다.
+        /// 이 작업은 PlayerDataManager의 내부 책임입니다.
+        /// </summary>
         public async Task LoadPlayerDataAsync()
         {
             CoreLogger.Log("[PlayerDataManager] Attempting to load player data...");
             try
             {
-                // CancellationToken을 사용하는 UniTask 버전의 API가 있다면 더 좋습니다.
                 m_currentPlayerStats = await _playerStatsRepository.LoadPlayerStatsAsync(1);
                 if (m_currentPlayerStats != null)
                 {
@@ -93,29 +102,12 @@ namespace Features.Player
             }
             finally
             {
-                // 로드가 성공하든 실패하든, 상태 변경을 알립니다.
                 OnPlayerStatsChanged?.Invoke();
             }
         }
 
-        public async Task SavePlayerDataAsync()
-        {
-            if (m_currentPlayerStats == null)
-            {
-                CoreLogger.LogWarning("[PlayerDataManager] Attempted to save null player data. Initializing with default.");
-                m_currentPlayerStats = new PlayerStatsData();
-            }
-
-            CoreLogger.Log($"[PlayerDataManager] Saving player data for SlotID {m_currentPlayerStats.SaveSlotID}...");
-            try
-            {
-                await _playerStatsRepository.SavePlayerStatsAsync(m_currentPlayerStats);
-                CoreLogger.Log("[PlayerDataManager] Player data saved successfully.");
-            }
-            catch (Exception ex)
-            {
-                CoreLogger.LogError($"[PlayerDataManager] Failed to save player data: {ex.Message}");
-            }
-        }
+        // SavePlayerDataAsync 메서드를 완전히 제거합니다.
+        // 이 책임은 DataManager로 이전되었습니다.
+        // public async Task SavePlayerDataAsync() { ... }
     }
 }

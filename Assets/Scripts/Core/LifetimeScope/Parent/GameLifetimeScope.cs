@@ -5,7 +5,6 @@ using Core.Data;
 using Core.Data.Impl;
 using Core.Data.Interface;
 using Core.Interface;
-using Core.Interface.Core.Interface;
 using Core.Logging;
 using Core.Resource;
 using Core.Util;

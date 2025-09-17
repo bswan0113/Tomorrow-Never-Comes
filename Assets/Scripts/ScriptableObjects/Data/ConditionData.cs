@@ -1,12 +1,9 @@
-// 경로: C:\Workspace\Tomorrow Never Comes\Assets\Scripts\ScriptableObjects\ConditionData.cs
+// 경로: C:\Workspace\Tomorrow Never Comes\Assets\Scripts\ScriptableObjects\Data\ConditionData.cs
 
+using Core.Interface; // IPlayerService를 사용하기 위해 추가
 using Core.Logging;
 using ScriptableObjects.Abstract;
 using UnityEngine;
-
-// 기존에 있던 enum 선언은 이제 필요 없으므로 삭제합니다.
-// public enum ConditionType { StatCheck }
-// public enum Operator { ... }
 
 namespace ScriptableObjects.Data
 {
@@ -16,24 +13,28 @@ namespace ScriptableObjects.Data
         [Tooltip("이 조건에 대한 설명 (기획자용)")]
         public string description;
 
-        // ▼▼▼ 이 부분이 변경됩니다. ▼▼▼
-        // 기존의 type, targetStatName, comparisonOperator, value 필드를 모두 삭제하고,
-        // 아래의 BaseCondition 참조 필드 하나로 대체합니다.
         [Tooltip("실제 조건 판별 로직을 담고 있는 SO를 여기에 연결하세요.")]
         public BaseCondition conditionLogic;
-        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
         /// <summary>
         /// 연결된 조건 로직을 평가하여 결과를 반환합니다.
         /// </summary>
-        public bool Evaluate()
+        /// <param name="playerService">플레이어 스탯 및 상태 정보를 제공하는 서비스.</param>
+        /// <returns>조건 충족 시 true, 아닐 시 false</returns>
+        public bool Evaluate(IPlayerService playerService) // IPlayerService 인자 추가
         {
             if (conditionLogic == null)
             {
-                CoreLogger.LogWarning($"ConditionData '{name}'에 conditionLogic이 할당되지 않았습니다.", this);
+                CoreLogger.LogWarning($"[ConditionData:{name}] conditionLogic이 할당되지 않았습니다. 항상 false를 반환합니다.", this);
                 return false;
             }
-            return conditionLogic.IsMet();
+            if (playerService == null)
+            {
+                CoreLogger.LogError($"[ConditionData:{name}] Evaluate 호출 시 playerService가 null입니다. 조건 평가를 할 수 없습니다.", this);
+                return false;
+            }
+            // conditionLogic.IsMet() 메서드에 playerService 인자를 전달합니다.
+            return conditionLogic.IsMet(playerService);
         }
     }
 }

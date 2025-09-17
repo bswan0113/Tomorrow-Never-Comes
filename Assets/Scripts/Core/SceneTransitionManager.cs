@@ -10,15 +10,14 @@ using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using VContainer;
-using Cysharp.Threading.Tasks;
+using Cysharp.Threading.Tasks; // UniTask 사용
 using VContainer.Unity;
 
 namespace Core
 {
-    // MonoBehaviour 제거, IInitializable 구현 (초기 페이드인을 위해)
     public class SceneTransitionManager : ISceneTransitionService, IInitializable
     {
-        private readonly SceneTransitionView _view; // 씬의 View를 주입받음
+        private readonly SceneTransitionView _view;
         private readonly float _fadeDuration = 1f;
 
         private bool _isTransitioning = false;
@@ -33,30 +32,31 @@ namespace Core
         public SceneTransitionManager(SceneTransitionView view)
         {
             _view = view ?? throw new ArgumentNullException(nameof(view));
-            // 필요하다면 설정값(fadeDuration)도 DI를 통해 주입받을 수 있습니다.
         }
 
-        // VContainer가 모든 주입 후 호출. 게임 시작 시 초기 페이드인을 담당합니다.
         public void Initialize()
         {
             if (_view.FadeImage != null)
             {
                 _view.FadeImage.color = new Color(0, 0, 0, 1);
-                // Initialize는 동기 메서드이므로, 비동기 Fade는 Forget()으로 처리합니다.
-                // 이는 게임 로직의 일부이므로 IAsyncStartable 대신 IInitializable에서 시작해도 좋습니다.
                 FadeAsync(0f).Forget();
             }
         }
 
-        public void FadeAndLoadScene(string sceneName)
+        /// <summary>
+        /// 페이드 효과와 함께 씬을 비동기적으로 로드합니다. 이 작업이 완료될 때까지 기다릴 수 있습니다.
+        /// </summary>
+        /// <param name="sceneName">로드할 씬의 이름.</param>
+        /// <returns>씬 전환 작업이 완료되면 끝나는 UniTask.</returns>
+        public async UniTask FadeAndLoadScene(string sceneName) // void -> async UniTask로 변경
         {
             if (_isTransitioning)
             {
                 CoreLogger.LogWarning($"Scene transition already in progress. Ignoring request to load '{sceneName}'.");
                 return;
             }
-            // 비동기 작업을 시작하고 호출자는 기다리지 않음 (Fire-and-forget)
-            FadeAndLoadSceneAsync(sceneName).Forget();
+            // .Forget() 대신 await를 사용하여 내부 비동기 작업이 끝날 때까지 기다립니다.
+            await FadeAndLoadSceneAsync(sceneName);
         }
 
         private async UniTask FadeAndLoadSceneAsync(string sceneName, CancellationToken cancellationToken = default)
@@ -103,7 +103,6 @@ namespace Core
                 _isTransitioning = false;
                 OnTransitionStateChanged?.Invoke(false);
                 CoreLogger.LogInfo($"[SceneTransitionManager] Scene transition for '{sceneName}' finished (status: {(transitionFailed ? "Failed" : "Completed")}).");
-                // 핸들 해제는 Addressables 정책에 따라 결정 (보통 자동으로 관리됨)
             }
         }
 
@@ -121,14 +120,12 @@ namespace Core
 
             while (time < _fadeDuration)
             {
-                // 매 프레임마다 취소 요청을 확인
                 cancellationToken.ThrowIfCancellationRequested();
 
                 time += Time.unscaledDeltaTime;
                 float alpha = Mathf.Lerp(startAlpha, targetAlpha, time / _fadeDuration);
                 fadeImage.color = new Color(0, 0, 0, alpha);
 
-                // 다음 프레임까지 기다림
                 await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
             }
 

@@ -19,9 +19,11 @@ namespace Core.Data.Interface
 
         /// <summary>
         /// GameProgressData를 비동기적으로 저장합니다. 기존 데이터가 있으면 업데이트하고 없으면 삽입합니다.
+        /// 트랜잭션이 제공되면 해당 트랜잭션 내에서 작업을 수행합니다.
         /// </summary>
         /// <param name="data">저장할 GameProgressData 객체.</param>
-        Task SaveGameProgressAsync(GameProgressData data);
+        /// <param name="transaction">현재 저장 작업을 포함할 트랜잭션 객체. 트랜잭션 없이는 저장할 수 없습니다.</param>
+        Task SaveGameProgressAsync(GameProgressData data, ITransaction transaction); // 트랜잭션 인자 추가
 
         /// <summary>
         /// 지정된 세이브 슬롯 ID에 해당하는 GameProgressData를 비동기적으로 삭제합니다.

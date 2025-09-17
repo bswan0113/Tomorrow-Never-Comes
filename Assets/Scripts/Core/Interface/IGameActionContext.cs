@@ -1,13 +1,14 @@
 // C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Core\Interface\IGameActionContext.cs
 
-using System; // Action 델리게이트를 사용하기 위해 추가
+using System;
 using System.Threading;
-using Core.Interface.Core.Interface;
-// CancellationToken을 사용하기 위해 추가
 using UnityEngine;
 
 namespace Core.Interface
 {
+    /// <summary>
+    /// 게임 액션 실행에 필요한 서비스와 유틸리티에 대한 접근을 제공하는 컨텍스트 인터페이스입니다.
+    /// </summary>
     public interface IGameActionContext
     {
         /// <summary>
@@ -19,6 +20,11 @@ namespace Core.Interface
         /// 대화 서비스에 접근하기 위한 인터페이스입니다.
         /// </summary>
         IDialogueService dialogueService { get; }
+
+        /// <summary>
+        /// 플레이어 서비스에 접근하기 위한 인터페이스입니다.
+        /// </summary>
+        IPlayerService playerService { get; } // IPlayerService 속성 추가
 
         /// <summary>
         /// 코루틴을 실행할 수 있는 MonoBehaviour 인스턴스입니다.

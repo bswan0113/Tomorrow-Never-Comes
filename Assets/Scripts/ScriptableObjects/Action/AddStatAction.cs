@@ -18,7 +18,7 @@ namespace ScriptableObjects.Action
         [Tooltip("더하거나 뺄 값 (음수 가능)")]
         public int amount;
 
-        [SerializeField] private IPlayerService playerService;
+        // [SerializeField] private IPlayerService playerService; // 불필요한 필드 제거
 
         public override bool IsValid(IGameActionContext context, out string reason)
         {
@@ -27,47 +27,55 @@ namespace ScriptableObjects.Action
                 reason = "targetStatName이 설정되지 않았습니다.";
                 return false;
             }
-            if (context.gameService == null) // 예시: gameService가 필수인 경우
+            // context.playerService의 유효성 검사를 IsValid에서 미리 하는 것이 좋습니다.
+            if (context.playerService == null)
             {
-                reason = "GameService가 컨텍스트에 없습니다.";
+                reason = "PlayerService가 컨텍스트에 없습니다.";
                 return false;
             }
 
             reason = string.Empty;
             return true;
         }
-        // [변경] 메서드 시그니처를 BaseAction에 맞게 수정하고, 반환 타입을 IEnumerator로 변경합니다.
-        // executor 파라미터는 이 액션에서 직접 사용하지 않지만, 인터페이스를 맞추기 위해 필요합니다.
+
         public override IEnumerator Execute(IGameActionContext context)
         {
+            // 이제 IGameActionContext를 통해 playerService를 가져옵니다.
+            IPlayerService playerService = context.playerService;
+
             if (playerService == null)
             {
-                CoreLogger.LogError("playerService가 씬에 없습니다!", this);
-                yield break; // PlayerDataManager가 없으면 아무것도 하지 않고 즉시 종료
+                // IsValid에서 이미 체크했겠지만, 런타임에 null이 될 경우를 대비하여 방어 코드 유지
+                CoreLogger.LogError("[AddStatAction] PlayerService가 IGameActionContext에서 제공되지 않았습니다.");
+                context.ReportError(new InvalidOperationException("PlayerService is not available in the GameActionContext."));
+                yield break;
             }
+
             try
             {
                 // 취소 요청 확인
                 ThrowIfCancellationRequested(context.CancellationToken);
 
-                // 기존 로직은 그대로 유지합니다.
                 switch (targetStatName)
                 {
                     case "Intellect":
                         playerService.AddIntellect(amount);
+                        CoreLogger.Log($"[AddStatAction] Intellect changed by {amount}. New value: {playerService.GetCurrentPlayerStats().Intellect}");
                         break;
                     case "Charm":
                         playerService.AddCharm(amount);
+                        CoreLogger.Log($"[AddStatAction] Charm changed by {amount}. New value: {playerService.GetCurrentPlayerStats().Charm}");
                         break;
-                    // TODO: PlayerDataManager에 AddEndurance, AddMoney 함수가 있다면 여기에 추가
+                    case "Money": // Money 스탯 변경 로직 추가 (PlayerDataManager에 AddMoney 함수가 있다면)
+                        playerService.AddMoney(amount);
+                        CoreLogger.Log($"[AddStatAction] Money changed by {amount}. New value: {playerService.GetCurrentPlayerStats().Money}");
+                        break;
+                    // TODO: PlayerDataManager에 AddEndurance 함수가 있다면 여기에 추가
                     // case "Endurance":
                     //     playerService.AddEndurance(amount);
                     //     break;
-                    // case "Money":
-                    //     playerService.AddMoney(amount);
-                    //     break;
                     default:
-                        CoreLogger.LogWarning($"[AddStatAction] '{targetStatName}'에 해당하는 스탯 변경 로직이 없습니다.", this);
+                        CoreLogger.LogWarning($"[AddStatAction] '{targetStatName}'에 해당하는 스탯 변경 로직이 없습니다. 아무 작업도 수행하지 않습니다.");
                         break;
                 }
                 // 취소 요청 확인 (장기 실행 로직 중간에도 확인할 수 있음)
@@ -82,6 +90,7 @@ namespace ScriptableObjects.Action
                 // 다른 모든 예외는 여기서 처리하고 ReportError를 통해 알림
                 HandleActionExecutionError(context, ex);
             }
+            yield return null; // 모든 Action 코루틴은 최소한 한 번은 yield해야 합니다.
         }
     }
 }

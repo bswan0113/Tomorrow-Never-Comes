@@ -1,4 +1,4 @@
-// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Features\UI\Common\DialogueManager.cs (REFACTORED)
+// C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Features\UI\DialogueManager.cs (REFACTORED)
 
 using System;
 using System.Collections;
@@ -6,14 +6,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Core.Interface;
-using Core.Interface.Core.Interface;
 using Core.Logging;
 using ScriptableObjects.Abstract;
 using ScriptableObjects.Action;
 using ScriptableObjects.Data;
 using UnityEngine;
 using VContainer;
-using Cysharp.Threading.Tasks; // UniTask 사용을 위해
+using Cysharp.Threading.Tasks;
 
 namespace Features.UI.Common
 {
@@ -22,13 +21,15 @@ namespace Features.UI.Common
         // 의존성
         private readonly IGameResourceService _gameResourceService;
         private readonly IGameService _gameService;
+        private readonly IPlayerService _playerService; // IPlayerService 의존성 추가
 
         private IDialogueUIHandler _uiHandler;
-        private MonoBehaviour _coroutineRunner; // 코루틴 실행을 위한 대리자
+        private MonoBehaviour _coroutineRunner;
 
         // IGameActionContext 구현
         public IGameService gameService => _gameService;
         public IDialogueService dialogueService => this;
+        public IPlayerService playerService => _playerService; // IPlayerService 속성 구현 추가
         public MonoBehaviour coroutineRunner => _coroutineRunner;
 
         // 선택지 액션
@@ -49,10 +50,11 @@ namespace Features.UI.Common
         public event Action<bool> OnDialogueStateChanged;
 
         [Inject]
-        public DialogueManager(IGameResourceService gameResourceService, IGameService gameService)
+        public DialogueManager(IGameResourceService gameResourceService, IGameService gameService, IPlayerService playerService) // IPlayerService 인자 추가
         {
             _gameResourceService = gameResourceService ?? throw new ArgumentNullException(nameof(gameResourceService));
             _gameService = gameService ?? throw new ArgumentNullException(nameof(gameService));
+            _playerService = playerService ?? throw new ArgumentNullException(nameof(playerService)); // IPlayerService 주입 및 할당
             dialogueQueue = new Queue<DialogueLine>();
             CoreLogger.Log("[DialogueManager] Constructed via VContainer.");
         }
@@ -65,7 +67,6 @@ namespace Features.UI.Common
             CoreLogger.Log("[DialogueManager] Disposed.");
         }
 
-        // DialogueSystemUpdater가 대신 호출해 줄 Update 로직
         public void OnUpdate()
         {
             if (isDialogueActive && !isDisplayingChoices && canProcessInput && Input.GetKeyDown(KeyCode.Space))
@@ -84,7 +85,6 @@ namespace Features.UI.Common
             }
         }
 
-        // 코루틴 실행 대리자를 설정하는 메서드
         public void SetCoroutineRunner(MonoBehaviour runner)
         {
             _coroutineRunner = runner;
@@ -121,7 +121,7 @@ namespace Features.UI.Common
             _uiHandler.Show();
 
             dialogueQueue.Clear();
-            if(data.dialogueLines != null)
+            if (data.dialogueLines != null)
             {
                 foreach (var line in data.dialogueLines)
                 {
@@ -183,7 +183,6 @@ namespace Features.UI.Common
             _isExecutingChoiceActions = false;
         }
 
-        // Action을 넘기는 대신 ChoiceData를 직접 받아 처리하도록 변경하여 더 깔끔하게 만듦
         private IEnumerator ExecuteChoiceActionsCoroutine(ChoiceData choice)
         {
             _isExecutingChoiceActions = true;
@@ -198,7 +197,6 @@ namespace Features.UI.Common
                         if (_choiceActionCts.Token.IsCancellationRequested) break;
                         if (action == null) continue;
 
-                        // action.Execute() 호출 자체에서 발생할 수 있는 동기적인 예외를 잡기 위한 부분
                         IEnumerator actionCoroutine;
                         try
                         {
@@ -207,11 +205,9 @@ namespace Features.UI.Common
                         catch (Exception ex)
                         {
                             ReportError(ex);
-                            yield break; // 예외 발생 시 전체 코루틴 즉시 종료
+                            yield break;
                         }
 
-                        // yield return은 try-catch 블록 밖에서 안전하게 실행
-                        // actionCoroutine 자체의 실행 중 발생하는 예외는 Unity의 Coroutine Runner가 처리합니다. (콘솔에 로그 출력)
                         if (actionCoroutine != null)
                         {
                             yield return _coroutineRunner.StartCoroutine(actionCoroutine);
@@ -222,7 +218,7 @@ namespace Features.UI.Common
             finally
             {
                 _isExecutingChoiceActions = false;
-                _choiceActionCts.Dispose();
+                _choiceActionCts?.Dispose();
                 _choiceActionCts = null;
 
                 bool isEffectivelyNoNextDialogue = string.IsNullOrEmpty(choice.nextDialogueID) || choice.nextDialogueID == noneRegisteredIdentifier;

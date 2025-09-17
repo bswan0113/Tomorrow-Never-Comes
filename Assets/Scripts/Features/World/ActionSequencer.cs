@@ -5,7 +5,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using Core.Interface;
-using Core.Interface.Core.Interface;
 using Core.Logging;
 using ScriptableObjects.Abstract;
 using UnityEngine;
@@ -23,10 +22,12 @@ namespace Features.World
 
         private IGameService _gameService;
         private IDialogueService _dialogueService;
+        private IPlayerService _playerService; // IPlayerService 필드 추가
 
         // IGameActionContext 구현
         public IGameService gameService => _gameService;
         public IDialogueService dialogueService => _dialogueService;
+        public IPlayerService playerService => _playerService; // IPlayerService 속성 구현 추가
         public MonoBehaviour coroutineRunner => this;
         public CancellationToken CancellationToken => _cancellationTokenSource?.Token ?? CancellationToken.None;
 
@@ -37,10 +38,12 @@ namespace Features.World
         }
 
         [Inject]
-        public void Construct(IGameService gameService, IDialogueService dialogueService)
+        public void Construct(IGameService gameService, IDialogueService dialogueService, IPlayerService playerService) // IPlayerService 인자 추가
         {
             _gameService = gameService ?? throw new ArgumentNullException(nameof(gameService));
             _dialogueService = dialogueService ?? throw new ArgumentNullException(nameof(dialogueService));
+            _playerService = playerService ?? throw new ArgumentNullException(nameof(playerService)); // IPlayerService 주입 및 할당
+            CoreLogger.Log("[ActionSequencer] Constructed via VContainer method injection.");
         }
 
         private void OnDisable()
@@ -165,8 +168,9 @@ namespace Features.World
                     }
                     else if (executionSuccess) // actionExecution이 null (즉시 완료 액션)
                     {
-                        // CoreLogger.LogWarning($"[ActionSequencer] 액션 '{action.name}'이 유효한 코루틴을 반환하지 않았습니다. (즉시 완료로 간주)", this);
-                        yield return null; // 만약의 경우를 대비해 한 프레임 대기
+                        // 즉시 완료 액션의 경우, 특별히 대기할 필요 없이 다음 프레임으로 넘어갈 수 있습니다.
+                        // 하지만 혹시 모를 로직의 꼬임을 방지하기 위해 1 프레임 대기는 유효합니다.
+                        yield return null;
                     }
 
                     // ReportError가 호출되면 _cancellationTokenSource가 Cancel되고,

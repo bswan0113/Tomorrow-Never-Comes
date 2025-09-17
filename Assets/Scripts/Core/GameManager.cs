@@ -7,41 +7,35 @@ using Core.Data.Interface;
 using Core.Interface;
 using Core.Logging;
 using Features.Data;
-using ScriptableObjects.Data; // GameProgressData 사용을 위해 추가
+using Features.Player; // PlayerStatsData를 사용하기 위해 추가
+using ScriptableObjects.Data;
 using UnityEngine;
 using VContainer;
 
-
-// GameManager를 일반 C# 클래스로 변경
 namespace Core
 {
-    public class GameManager : IGameService // : MonoBehaviour (<- 제거)
+    public class GameManager : IGameService
     {
-        // public static GameManager Instance { get; private set; } // <- 제거
-        // [Header("게임 상태")] // <- 일반 클래스에서는 [SerializeField]와 함께 작동하지 않습니다.
         private int dayCount = 1;
         private int maxActionPoint = 10;
         private int currentActionPoint;
 
-        // 이벤트는 그대로 유지 가능
         public event Action OnDayStart;
         public event Action OnActionPointChanged;
 
-        // 의존성들을 저장할 private readonly 필드
         private readonly IPlayerService _playerService;
         private readonly ISceneTransitionService _sceneTransitionService;
         private readonly IGameResourceService _gameResourceService;
-        private readonly IDataService _dataService; // P24: DataManager의 파사드 역할을 위해 IDataService 유지
-        private readonly IGameProgressRepository _gameProgressRepository; // P24: GameProgressData 로드를 위해 추가
+        private readonly IDataService _dataService;
+        private readonly IGameProgressRepository _gameProgressRepository;
 
-        // 생성자를 통해 의존성을 주입받도록 변경
         [Inject]
         public GameManager(
             IPlayerService playerService,
             ISceneTransitionService sceneTransitionService,
             IGameResourceService gameResourceService,
-            IDataService dataService, // DataManager (IDataService)
-            IGameProgressRepository gameProgressRepository) // GameProgressRepository
+            IDataService dataService,
+            IGameProgressRepository gameProgressRepository)
         {
             _playerService = playerService ?? throw new ArgumentNullException(nameof(playerService));
             _sceneTransitionService = sceneTransitionService ?? throw new ArgumentNullException(nameof(sceneTransitionService));
@@ -49,13 +43,14 @@ namespace Core
             _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
             _gameProgressRepository = gameProgressRepository ?? throw new ArgumentNullException(nameof(gameProgressRepository));
 
-            currentActionPoint = maxActionPoint; // 초기화 로직은 생성자에서 수행
+            currentActionPoint = maxActionPoint;
             CoreLogger.Log("GameManager 초기화 완료 (DI 방식)");
         }
 
-        public void StartGame()
+        public async Task StartGame()
         {
-            LoadGameProgress();
+            CoreLogger.Log("[GameManager] StartGame 호출됨.");
+            await LoadGameProgress();
         }
 
         public int DayCount => dayCount;
@@ -77,11 +72,12 @@ namespace Core
             }
         }
 
-        public async void AdvanceToNextDay() // 비동기 저장을 위해 async로 변경
+        public async Task AdvanceToNextDay()
         {
+            CoreLogger.Log("[GameManager] 다음 날로 진행 요청.");
             if (CheckSurvivalConditions())
             {
-                await SaveGameProgress(); // 비동기 저장 대기
+                await SaveGameProgress();
                 dayCount++;
                 CoreLogger.Log($"<color=yellow>========== {dayCount}일차 아침이 밝았습니다. ==========</color>");
 
@@ -90,19 +86,17 @@ namespace Core
                 OnDayStart?.Invoke();
                 OnActionPointChanged?.Invoke();
 
-                // 주입받은 SceneTransitionService 사용
-                _sceneTransitionService.FadeAndLoadScene("PlayerRoom");
+                await _sceneTransitionService.FadeAndLoadScene("PlayerRoom");
             }
             else
             {
-                // 주입받은 SceneTransitionService 사용
-                _sceneTransitionService.FadeAndLoadScene("GameOverScene");
+                HandleGameOver();
+                await _sceneTransitionService.FadeAndLoadScene("GameOverScene");
             }
         }
 
         private bool CheckSurvivalConditions()
         {
-            // 주입받은 GameResourceService 사용
             var allRules = _gameResourceService.GetAllDataOfType<DailyRuleData>();
             DailyRuleData currentDayRule = allRules.FirstOrDefault(rule => rule.targetDay == dayCount);
 
@@ -137,54 +131,63 @@ namespace Core
                 CoreLogger.LogWarning("평가하려는 ConditionData가 null입니다.");
                 return false;
             }
-            return condition.Evaluate();
+            return condition.Evaluate(_playerService);
         }
 
-        private async void LoadGameProgress() // 비동기 로드를 위해 async로 변경
+        private async Task LoadGameProgress()
         {
-            // 주입받은 DataService를 통해 SaveData 유무 확인
-            // HasSaveData는 DataManager의 HasSaveData를 사용합니다.
-            // DataManager의 LoadAllGameData는 시작 시 HasSaveData를 업데이트하므로, 여기서는 그 값을 사용합니다.
+            CoreLogger.Log("[GameManager] 게임 진행 상황 로드 시도...");
             if (_dataService.HasSaveData)
             {
-                // P24: GameProgressData 로드를 위해 IGameProgressRepository 사용
-                GameProgressData progressData = await _gameProgressRepository.LoadGameProgressAsync(1); // 기본 세이브 슬롯 ID = 1
+                GameProgressData progressData = await _gameProgressRepository.LoadGameProgressAsync(1);
                 if (progressData != null)
                 {
                     dayCount = progressData.CurrentDay;
-                    CoreLogger.Log($"<color=yellow>저장된 데이터 로드: {dayCount}일차에서 시작합니다. (마지막 씬: {progressData.LastSceneName})</color>");
-                    _sceneTransitionService.FadeAndLoadScene(progressData.LastSceneName); // 로드된 씬으로 이동
+                    CoreLogger.Log($"<color=yellow>저장된 데이터 로드 성공: {dayCount}일차에서 시작합니다. (마지막 씬: {progressData.LastSceneName})</color>");
+                    await _sceneTransitionService.FadeAndLoadScene(progressData.LastSceneName);
                 }
                 else
                 {
                     CoreLogger.Log($"<color=cyan>저장된 게임 진행 데이터가 없거나 로드에 실패했습니다. 새 게임으로 시작합니다 (1일차).</color>");
                     dayCount = 1;
-                    _sceneTransitionService.FadeAndLoadScene("PlayerRoom"); // 기본 시작 씬
+                    await _sceneTransitionService.FadeAndLoadScene("PlayerRoom");
                 }
             }
             else
             {
                 CoreLogger.Log($"<color=cyan>저장된 게임 데이터가 없습니다. 새 게임으로 시작합니다 (1일차).</color>");
                 dayCount = 1;
-                _sceneTransitionService.FadeAndLoadScene("PlayerRoom"); // 기본 시작 씬
+                await _sceneTransitionService.FadeAndLoadScene("PlayerRoom");
             }
         }
 
-        private async Task SaveGameProgress() // 비동기 저장을 위해 async Task로 변경
+        /// <summary>
+        /// 현재 게임 상태(진행, 스탯)를 수집하여 DataManager에 저장을 요청합니다.
+        /// </summary>
+        private async Task SaveGameProgress()
         {
-            // 현재 게임 상태를 GameProgressData 객체로 만듦
-            var currentProgress = new GameProgressData
+            CoreLogger.Log("[GameManager] 게임 데이터 저장을 준비합니다...");
+            const int saveSlotId = 1;
+
+            // 1. 저장할 GameProgressData를 생성합니다.
+            var gameProgressToSave = new GameProgressData
             {
-                SaveSlotID = 1, // 기본 세이브 슬롯 ID
-                CurrentDay = dayCount,
-                LastSceneName = _sceneTransitionService.CurrentSceneName // 현재 씬 이름을 가져오는 인터페이스 필요 (가정)
-                                                                       // SceneTransitionService에 CurrentSceneName 속성이 없으면 추가해야 함.
-                                                                       // 임시로 하드코딩된 "PlayerRoom"을 사용하거나, 실제 씬 매니저에서 가져와야 함.
+                SaveSlotID = saveSlotId,
+                CurrentDay = this.dayCount,
+                LastSceneName = _sceneTransitionService.CurrentSceneName,
+                SaveDateTime = DateTime.UtcNow
             };
 
-            // P24: DataManager의 SaveAllGameData 파사드 메서드를 호출하여 전체 게임 데이터 저장
-            await _dataService.SaveAllGameData(currentProgress.SaveSlotID);
-            CoreLogger.Log($"<color=orange>게임 진행 상황 저장 완료 (DataManager 파사드): {dayCount}일차</color>");
+            // 2. IPlayerService를 통해 현재 PlayerStatsData를 가져옵니다.
+            PlayerStatsData playerStatsToSave = _playerService.GetCurrentPlayerStats();
+
+            // 데이터 일관성을 위해 SaveSlotID를 통일합니다.
+            playerStatsToSave.SaveSlotID = saveSlotId;
+
+            // 3. 수집한 두 데이터를 DataManager의 SaveAllGameData에 전달합니다.
+            await _dataService.SaveAllGameData(gameProgressToSave, playerStatsToSave);
+
+            CoreLogger.Log($"<color=orange>게임 데이터 저장 요청 완료: {dayCount}일차</color>");
         }
     }
 }

@@ -2,6 +2,7 @@
 
 using System;
 using System.Threading;
+using Cysharp.Threading.Tasks;
 
 namespace Core.Interface
 {
@@ -27,7 +28,7 @@ namespace Core.Interface
         /// 지정된 씬으로 페이드 효과와 함께 전환을 시작합니다.
         /// </summary>
         /// <param name="sceneName">로드할 씬의 이름입니다.</param>
-        void FadeAndLoadScene(string sceneName);
+        UniTask FadeAndLoadScene(string sceneName);
 
         string CurrentSceneName {get;}
     }
