@@ -2,10 +2,10 @@
 
 using System;
 using System.Linq;
-using System.Threading.Tasks;
 using Core.Data.Interface;
 using Core.Interface;
 using Core.Logging;
+using Cysharp.Threading.Tasks;
 using Features.Data;
 using Features.Player; // PlayerStatsData를 사용하기 위해 추가
 using ScriptableObjects.Data;
@@ -47,7 +47,7 @@ namespace Core
             CoreLogger.Log("GameManager 초기화 완료 (DI 방식)");
         }
 
-        public async Task StartGame()
+        public async UniTask StartGame()
         {
             CoreLogger.Log("[GameManager] StartGame 호출됨.");
             await LoadGameProgress();
@@ -72,7 +72,7 @@ namespace Core
             }
         }
 
-        public async Task AdvanceToNextDay()
+        public async UniTask AdvanceToNextDay()
         {
             CoreLogger.Log("[GameManager] 다음 날로 진행 요청.");
             if (CheckSurvivalConditions())
@@ -134,7 +134,7 @@ namespace Core
             return condition.Evaluate(_playerService);
         }
 
-        private async Task LoadGameProgress()
+        private async UniTask LoadGameProgress()
         {
             CoreLogger.Log("[GameManager] 게임 진행 상황 로드 시도...");
             if (_dataService.HasSaveData)
@@ -164,7 +164,7 @@ namespace Core
         /// <summary>
         /// 현재 게임 상태(진행, 스탯)를 수집하여 DataManager에 저장을 요청합니다.
         /// </summary>
-        private async Task SaveGameProgress()
+        private async UniTask SaveGameProgress()
         {
             CoreLogger.Log("[GameManager] 게임 데이터 저장을 준비합니다...");
             const int saveSlotId = 1;

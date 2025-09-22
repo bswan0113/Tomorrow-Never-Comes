@@ -1,7 +1,7 @@
 // C:\Workspace\Tomorrow Never Comes\Core\Interface\IPlayerService.cs (새로 생성 또는 수정)
 
 using System;
-using System.Threading.Tasks;
+using Cysharp.Threading.Tasks;
 using Features.Player; // PlayerStatsData 클래스를 사용하기 위해 추가
 
 namespace Core.Interface
@@ -46,8 +46,8 @@ namespace Core.Interface
         /// 플레이어 데이터를 비동기적으로 로드합니다.
         /// 이 메서드는 서비스 초기화 시점에 주로 사용됩니다.
         /// </summary>
-        /// <returns>비동기 로드 작업을 나타내는 Task</returns>
-        Task LoadPlayerDataAsync();
+        /// <returns>비동기 로드 작업을 나타내는 UniTask</returns>
+        UniTask LoadPlayerDataAsync();
 
 
         /// <summary>

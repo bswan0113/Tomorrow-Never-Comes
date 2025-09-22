@@ -5,11 +5,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks; // Task를 사용하기 위해 추가
 using Core.Logging;
 using Newtonsoft.Json;
 using UnityEngine;
 using Core.Data.Interface;
+using Cysharp.Threading.Tasks;
 
 namespace Core.Data
 {
@@ -139,7 +139,7 @@ namespace Core.Data
         /// 이 메서드는 IDatabaseAccess를 통해 DB 작업을 위임받습니다.
         /// </summary>
         /// <param name="dbAccess">데이터베이스 접근 인터페이스.</param>
-        public async Task InitializeTablesAsync(IDatabaseAccess dbAccess) // *** CHANGED: async Task, 이름 변경 ***
+        public async UniTask InitializeTablesAsync(IDatabaseAccess dbAccess) // *** CHANGED: async UniTask, 이름 변경 ***
         {
 
             if (dbAccess == null)

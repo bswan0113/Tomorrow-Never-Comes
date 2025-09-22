@@ -6,7 +6,8 @@ using Features.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
+using Cysharp.Threading.Tasks;
+
 // using Core.Util; // GameProgressSerializer의 실제 네임스페이스를 확인하고 필요에 따라 유지 또는 제거
 
 namespace Core.Data.Impl
@@ -37,12 +38,12 @@ namespace Core.Data.Impl
             CoreLogger.Log("[GameProgressRepository] Initialized.");
         }
 
-        public async Task<GameProgressData> LoadGameProgressAsync(int saveSlotId)
+        public async UniTask<GameProgressData> LoadGameProgressAsync(int saveSlotId)
         {
             CoreLogger.Log($"[GameProgressRepository] Loading GameProgressData for SaveSlotID: {saveSlotId}");
 
             // Load 작업은 트랜잭션 컨텍스트 내에서 수행될 필요가 없을 수 있으므로, 현재 시그니처 유지.
-            // DatabaseAccess의 SelectWhereAsync는 이미 Task.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
+            // DatabaseAccess의 SelectWhereAsync는 이미 UniTask.Run을 내부적으로 사용하여 백그라운드 스레드에서 실행됩니다.
             var dataMaps = await _dbAccess.SelectWhereAsync(
                 _serializer.GetTableName(),
                 new string[] { _serializer.GetPrimaryKeyColumnName() },
@@ -65,7 +66,7 @@ namespace Core.Data.Impl
         /// </summary>
         /// <param name="data">저장할 GameProgressData 객체.</param>
         /// <param name="transaction">현재 저장 작업을 포함할 트랜잭션 객체.</param>
-        public async Task SaveGameProgressAsync(GameProgressData data, ITransaction transaction) // 트랜잭션 인자 추가
+        public async UniTask SaveGameProgressAsync(GameProgressData data, ITransaction transaction) // 트랜잭션 인자 추가
         {
             if (data == null)
             {
@@ -123,7 +124,7 @@ namespace Core.Data.Impl
             }
         }
 
-        public async Task DeleteGameProgressAsync(int saveSlotId)
+        public async UniTask DeleteGameProgressAsync(int saveSlotId)
         {
             CoreLogger.Log($"[GameProgressRepository] Deleting GameProgressData for SaveSlotID: {saveSlotId}");
             // Delete 작업도 트랜잭션의 일부가 될 수 있으나, 현재 인터페이스에서는 명시적으로 트랜잭션을 받지 않습니다.
@@ -135,7 +136,7 @@ namespace Core.Data.Impl
             );
         }
 
-        public async Task<bool> HasGameProgressDataAsync(int saveSlotId)
+        public async UniTask<bool> HasGameProgressDataAsync(int saveSlotId)
         {
             CoreLogger.Log($"[GameProgressRepository] Checking for GameProgressData for SaveSlotID: {saveSlotId}");
             // HasData 확인은 트랜잭션 컨텍스트가 필요 없을 수 있습니다.

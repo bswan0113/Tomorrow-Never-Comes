@@ -2,11 +2,9 @@
 
 using System;
 using System.Collections.Concurrent;
-using System.Threading;
-using System.Threading.Tasks;
 using Core.Data.Interface;
 using Core.Logging;
-using Cysharp.Threading.Tasks; // UniTask
+using Cysharp.Threading.Tasks;
 using Features.Data;
 using Features.Player;
 using VContainer;
@@ -20,7 +18,7 @@ namespace Core.Data.Impl
         private readonly IGameProgressRepository _gameProgressRepository;
         private readonly IPlayerStatsRepository _playerStatsRepository;
 
-        private readonly ConcurrentQueue<Func<Task>> m_SaveQueue = new ConcurrentQueue<Func<Task>>();
+        private readonly ConcurrentQueue<Func<UniTask>> m_SaveQueue = new ConcurrentQueue<Func<UniTask>>();
         private bool m_IsProcessingSaveQueue = false;
 
         public bool HasSaveData { get; private set; } = false;
@@ -37,14 +35,14 @@ namespace Core.Data.Impl
             CoreLogger.Log("[DataManager] Constructed via VContainer constructor injection.");
         }
 
-        // public async UniTask StartAsync(CancellationToken cancellation)
+        // public async UniUniTask StartAsync(CancellationToken cancellation)
         // {
         //     CoreLogger.Log("[DataManager] DataManager starting asynchronously...");
         //     await CheckSaveDataAsync();
         //     CoreLogger.Log("[DataManager] DataManager Initialized successfully.");
         // }
 
-        public async Task CheckSaveDataAsync(int saveSlotId = 1)
+        public async UniTask CheckSaveDataAsync(int saveSlotId = 1)
         {
             try
             {
@@ -62,7 +60,7 @@ namespace Core.Data.Impl
         /// <summary>
         /// 여러 게임 데이터를 하나의 원자적 트랜잭션으로 묶어 저장하도록 큐에 작업을 추가합니다.
         /// </summary>
-        public Task SaveAllGameData(GameProgressData gameProgress, PlayerStatsData playerStats)
+        public UniTask SaveAllGameData(GameProgressData gameProgress, PlayerStatsData playerStats)
         {
             if (gameProgress == null) throw new ArgumentNullException(nameof(gameProgress));
             if (playerStats == null) throw new ArgumentNullException(nameof(playerStats));
@@ -70,13 +68,13 @@ namespace Core.Data.Impl
             CoreLogger.Log($"[DataManager] Enqueuing SaveAllGameData request for Slot {gameProgress.SaveSlotID}...");
             m_SaveQueue.Enqueue(() => PerformSaveOperationInTransaction(gameProgress, playerStats));
             ProcessSaveQueue();
-            return Task.CompletedTask;
+            return UniTask.CompletedTask;
         }
 
         /// <summary>
         /// 트랜잭션 내에서 모든 데이터 저장 작업을 수행합니다.
         /// </summary>
-        private async Task PerformSaveOperationInTransaction(GameProgressData gameProgress, PlayerStatsData playerStats)
+        private async UniTask PerformSaveOperationInTransaction(GameProgressData gameProgress, PlayerStatsData playerStats)
         {
             CoreLogger.Log($"[DataManager] Performing atomic save for Slot {gameProgress.SaveSlotID}.");
             ITransaction transaction = null;
@@ -131,7 +129,7 @@ namespace Core.Data.Impl
         }
 
         #region IDataService Implementation
-        public async Task<T> LoadDataAsync<T>(int saveSlotId) where T : class
+        public async UniTask<T> LoadDataAsync<T>(int saveSlotId) where T : class
         {
             if (typeof(T) == typeof(GameProgressData))
             {
@@ -149,7 +147,7 @@ namespace Core.Data.Impl
         /// <summary>
         /// 단일 데이터 엔티티를 원자적으로 저장합니다.
         /// </summary>
-        public async Task SaveDataAsync<T>(T data) where T : class
+        public async UniTask SaveDataAsync<T>(T data) where T : class
         {
             ITransaction transaction = null;
             try
@@ -187,7 +185,7 @@ namespace Core.Data.Impl
             }
         }
 
-        public async Task DeleteDataAsync<T>(int saveSlotId) where T : class
+        public async UniTask DeleteDataAsync<T>(int saveSlotId) where T : class
         {
             // 삭제 작업도 트랜잭션으로 묶는 것이 더 안전할 수 있지만, 현재 요구사항에서는 일단 유지합니다.
             if (typeof(T) == typeof(GameProgressData))

@@ -1,12 +1,10 @@
 // C:\Workspace\Tomorrow Never Comes\Assets\Scripts\Features\Player\PlayerDataManager.cs (REFACTORED)
 
 using System;
-using System.Threading.Tasks;
 using Core.Data.Interface;
 using Core.Interface;
 using Core.Logging;
 using VContainer;
-using VContainer.Unity;
 using Cysharp.Threading.Tasks;
 
 namespace Features.Player
@@ -79,7 +77,7 @@ namespace Features.Player
         /// Repository를 통해 PlayerStatsData를 비동기적으로 로드합니다.
         /// 이 작업은 PlayerDataManager의 내부 책임입니다.
         /// </summary>
-        public async Task LoadPlayerDataAsync()
+        public async UniTask LoadPlayerDataAsync()
         {
             CoreLogger.Log("[PlayerDataManager] Attempting to load player data...");
             try

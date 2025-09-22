@@ -6,10 +6,8 @@ using System;
 using System.Data;
 using Core.Data.Interface;
 using System.Threading;
-using System.Threading.Tasks;
-using Core.Logging;
 using Cysharp.Threading.Tasks;
-using VContainer.Unity;
+using Core.Logging;
 using System.Linq; // For .ToArray() in CreateTableAsync
 
 namespace Core.Data.Impl
@@ -42,18 +40,22 @@ namespace Core.Data.Impl
                 DbTransaction = dbTransaction ?? throw new ArgumentNullException(nameof(dbTransaction));
             }
 
-            public async Task CommitAsync()
+            // CHANGED: Task to UniTask
+            public async UniTask CommitAsync()
             {
                 if (_isCommittedOrRolledBack) return;
-                await Task.Run(() => DbTransaction.Commit());
+                // CHANGED: Task.Run to UniTask.RunOnThreadPool
+                await UniTask.RunOnThreadPool(() => DbTransaction.Commit());
                 _isCommittedOrRolledBack = true;
                 CoreLogger.Log("[DatabaseTransaction] Committed.");
             }
 
-            public async Task RollbackAsync()
+            // CHANGED: Task to UniTask
+            public async UniTask RollbackAsync()
             {
                 if (_isCommittedOrRolledBack) return;
-                await Task.Run(() => DbTransaction.Rollback());
+                // CHANGED: Task.Run to UniTask.RunOnThreadPool
+                await UniTask.RunOnThreadPool(() => DbTransaction.Rollback());
                 _isCommittedOrRolledBack = true;
                 CoreLogger.Log("[DatabaseTransaction] Rolled back.");
             }
@@ -92,15 +94,6 @@ namespace Core.Data.Impl
 
         }
 
-        // public async UniTask StartAsync(CancellationToken cancellation)
-        // {
-        //     CoreLogger.Log("[DatabaseAccess] Starting asynchronous initialization...");
-        //     // SchemaManager의 테이블 초기화가 DatabaseAccess의 메서드를 사용하도록 변경
-        //     await _schemaManager.InitializeTablesAsync(this);
-        //     CoreLogger.Log("[DatabaseAccess] Asynchronous initialization complete. Database is ready.");
-        // }
-
-        // --- Connection / Command Helpers (Internal) ---
 
         /// <summary>
         /// 데이터베이스 작업을 백그라운드 스레드에서 실행하고 연결을 관리합니다. (비트랜잭션용)
@@ -111,7 +104,7 @@ namespace Core.Data.Impl
             {
                 if (i > 0)
                 {
-                    CoreLogger.LogWarning($"[DatabaseAccess] Retrying {operationName} (Attempt {i + 1}/{MAX_RETRY_ATTEMPTS})...");
+                    CoreLogger.LogWarning($"[DatabaseAccess] Retrying {operationName} (Attempt {i + 1}/{MAX_RETRY_ATTEMPTS})....");
                     Thread.Sleep(RETRY_DELAY_MS);
                 }
 
@@ -202,7 +195,8 @@ namespace Core.Data.Impl
 
         // --- IDatabaseAccess Implementation ---
 
-        public async Task<List<Dictionary<string, object>>> SelectWhereAsync(string tableName, string[] columns, string[] operations, object[] values, string logicalOperator = "AND")
+        // CHANGED: Task to UniTask
+        public async UniTask<List<Dictionary<string, object>>> SelectWhereAsync(string tableName, string[] columns, string[] operations, object[] values, string logicalOperator = "AND")
         {
             ValidateTableName(tableName);
             ValidateColumnNames(tableName, columns);
@@ -220,7 +214,8 @@ namespace Core.Data.Impl
                 throw new ArgumentException($"Invalid logical operator: '{logicalOperator}'. Only 'AND' or 'OR' are allowed.", nameof(logicalOperator));
             }
 
-            return await Task.Run(() => ExecuteDbOperation(connection =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() => ExecuteDbOperation(connection =>
             {
                 string query = $"SELECT {(columns.Any() ? string.Join(", ", columns) : "*")} FROM {tableName} WHERE ";
                 var parameters = new Dictionary<string, object>();
@@ -255,11 +250,13 @@ namespace Core.Data.Impl
             }, $"executing SelectWhere on {tableName}"));
         }
 
-        public async Task<int> DeleteContentsAsync(string tableName)
+        // CHANGED: Task to UniTask
+        public async UniTask<int> DeleteContentsAsync(string tableName)
         {
             ValidateTableName(tableName);
 
-            return await Task.Run(() => ExecuteDbOperation(connection =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() => ExecuteDbOperation(connection =>
             {
                 string query = $"DELETE FROM {tableName}";
                 CoreLogger.Log($"[DatabaseAccess] Executing DeleteContents on {tableName}");
@@ -270,12 +267,14 @@ namespace Core.Data.Impl
             }, $"executing DeleteContents on {tableName}"));
         }
 
-        public async Task<bool> TableExistsAsync(string tableName)
+        // CHANGED: Task to UniTask
+        public async UniTask<bool> TableExistsAsync(string tableName)
         {
             // For checking internal SQLite tables, bypass schema manager validation on table name itself
             ValidateTableName(tableName, allowInternal: true);
 
-            return await Task.Run(() => ExecuteDbOperation(connection =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() => ExecuteDbOperation(connection =>
             {
                 string query = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{tableName}'";
                 using (var command = CreateCommand(connection, query))
@@ -286,7 +285,8 @@ namespace Core.Data.Impl
             }, $"checking if table {tableName} exists"));
         }
 
-        public async Task CreateTableAsync(string tableName, Dictionary<string, string> columnsWithTypes, string primaryKey)
+        // CHANGED: Task to UniTask
+        public async UniTask CreateTableAsync(string tableName, Dictionary<string, string> columnsWithTypes, string primaryKey)
         {
             ValidateTableName(tableName); // Use schema validation for application tables
             ValidateColumnNames(tableName, columnsWithTypes.Keys.ToArray());
@@ -305,7 +305,8 @@ namespace Core.Data.Impl
                 throw new ArgumentException($"Primary key column '{primaryKey}' must be present in columnsWithTypes.", nameof(primaryKey));
             }
 
-            await Task.Run(() => ExecuteDbOperation(connection =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            await UniTask.RunOnThreadPool(() => ExecuteDbOperation(connection =>
             {
                 string columnDefinitions = string.Join(", ", columnsWithTypes.Select(kvp => $"{kvp.Key} {kvp.Value}"));
                 string query = $"CREATE TABLE IF NOT EXISTS {tableName} ({columnDefinitions}, PRIMARY KEY({primaryKey}))";
@@ -320,9 +321,11 @@ namespace Core.Data.Impl
 
         // --- 트랜잭션 관리 ---
 
-        public async Task<ITransaction> BeginTransactionAsync(IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
+        // CHANGED: Task to UniTask
+        public async UniTask<ITransaction> BeginTransactionAsync(IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
         {
-            return await Task.Run(() =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() =>
             {
                 var connection = new SqliteConnection(m_ConnectionString);
                 connection.Open();
@@ -336,7 +339,8 @@ namespace Core.Data.Impl
 
         // --- 트랜잭션 인자를 받는 CRUD 오버로드 ---
 
-        public async Task<int> InsertIntoAsync(string tableName, string[] columns, object[] values, ITransaction transaction)
+        // CHANGED: Task to UniTask
+        public async UniTask<int> InsertIntoAsync(string tableName, string[] columns, object[] values, ITransaction transaction)
         {
             ValidateTableName(tableName);
             ValidateColumnNames(tableName, columns);
@@ -345,7 +349,8 @@ namespace Core.Data.Impl
             if (columns == null || values == null) throw new ArgumentNullException("Columns or values array cannot be null.");
             if (columns.Length != values.Length) throw new ArgumentException("Length of columns and values arrays must be equal.", nameof(columns));
 
-            return await Task.Run(() =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() =>
             {
                 string[] parameterNames = new string[columns.Length];
                 for (int i = 0; i < columns.Length; i++)
@@ -368,7 +373,8 @@ namespace Core.Data.Impl
             });
         }
 
-        public async Task<int> UpdateSetAsync(string tableName, string[] updateCols, object[] updateValues, string whereCol, object whereValue, ITransaction transaction)
+        // CHANGED: Task to UniTask
+        public async UniTask<int> UpdateSetAsync(string tableName, string[] updateCols, object[] updateValues, string whereCol, object whereValue, ITransaction transaction)
         {
             ValidateTableName(tableName);
             ValidateColumnNames(tableName, updateCols);
@@ -379,7 +385,8 @@ namespace Core.Data.Impl
             if (updateCols.Length != updateValues.Length) throw new ArgumentException("Length of updateCols and updateValues arrays must be equal.", nameof(updateCols));
             if (string.IsNullOrWhiteSpace(whereCol)) throw new ArgumentException("Where column cannot be null or empty.", nameof(whereCol));
 
-            return await Task.Run(() =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() =>
             {
                 string query = $"UPDATE {tableName} SET ";
                 var parameters = new Dictionary<string, object>();
@@ -406,7 +413,8 @@ namespace Core.Data.Impl
             });
         }
 
-        public async Task<int> DeleteWhereAsync(string tableName, string whereCol, object whereValue, ITransaction transaction)
+        // CHANGED: Task to UniTask
+        public async UniTask<int> DeleteWhereAsync(string tableName, string whereCol, object whereValue, ITransaction transaction)
         {
             ValidateTableName(tableName);
             ValidateColumnNames(tableName, whereCol);
@@ -414,7 +422,8 @@ namespace Core.Data.Impl
             if (transaction == null) throw new ArgumentNullException(nameof(transaction), "Transaction is required for this operation.");
             if (string.IsNullOrWhiteSpace(whereCol)) throw new ArgumentException("Where column cannot be null or empty.", nameof(whereCol));
 
-            return await Task.Run(() =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() =>
             {
                 string query = $"DELETE FROM {tableName} WHERE {whereCol} = @whereValue";
                 var parameters = new Dictionary<string, object>
@@ -429,12 +438,14 @@ namespace Core.Data.Impl
             });
         }
 
-        public async Task<int> ExecuteNonQueryAsync(string query, Dictionary<string, object> parameters, ITransaction transaction)
+        // CHANGED: Task to UniTask
+        public async UniTask<int> ExecuteNonQueryAsync(string query, Dictionary<string, object> parameters, ITransaction transaction)
         {
             if (string.IsNullOrWhiteSpace(query)) throw new ArgumentException("Query cannot be null or empty.", nameof(query));
             if (transaction == null) throw new ArgumentNullException(nameof(transaction), "Transaction is required for this operation.");
 
-            return await Task.Run(() =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() =>
             {
                 CoreLogger.Log($"[DatabaseAccess] Executing NonQuery in transaction: '{query}'");
                 using (var command = CreateCommand(transaction.Connection, query, parameters, transaction.DbTransaction))
@@ -447,7 +458,8 @@ namespace Core.Data.Impl
 
         // --- 기존 비트랜잭션 CRUD 작업 (새로운 트랜잭션 오버로드 추가로 인한 오버로드 유지) ---
 
-        public async Task<int> InsertIntoAsync(string tableName, string[] columns, object[] values)
+        // CHANGED: Task to UniTask
+        public async UniTask<int> InsertIntoAsync(string tableName, string[] columns, object[] values)
         {
             ValidateTableName(tableName);
             ValidateColumnNames(tableName, columns);
@@ -455,7 +467,8 @@ namespace Core.Data.Impl
             if (columns == null || values == null) throw new ArgumentNullException("Columns or values array cannot be null.");
             if (columns.Length != values.Length) throw new ArgumentException("Length of columns and values arrays must be equal.", nameof(columns));
 
-            return await Task.Run(() => ExecuteDbOperation(connection =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() => ExecuteDbOperation(connection =>
             {
                 string[] parameterNames = new string[columns.Length];
                 for (int i = 0; i < columns.Length; i++)
@@ -478,7 +491,8 @@ namespace Core.Data.Impl
             }, $"executing InsertInto on {tableName}"));
         }
 
-        public async Task<int> UpdateSetAsync(string tableName, string[] updateCols, object[] updateValues, string whereCol, object whereValue)
+        // CHANGED: Task to UniTask
+        public async UniTask<int> UpdateSetAsync(string tableName, string[] updateCols, object[] updateValues, string whereCol, object whereValue)
         {
             ValidateTableName(tableName);
             ValidateColumnNames(tableName, updateCols);
@@ -488,7 +502,8 @@ namespace Core.Data.Impl
             if (updateCols.Length != updateValues.Length) throw new ArgumentException("Length of updateCols and updateValues arrays must be equal.", nameof(updateCols));
             if (string.IsNullOrWhiteSpace(whereCol)) throw new ArgumentException("Where column cannot be null or empty.", nameof(whereCol));
 
-            return await Task.Run(() => ExecuteDbOperation(connection =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() => ExecuteDbOperation(connection =>
             {
                 string query = $"UPDATE {tableName} SET ";
                 var parameters = new Dictionary<string, object>();
@@ -515,14 +530,16 @@ namespace Core.Data.Impl
             }, $"executing UpdateSet on {tableName}"));
         }
 
-        public async Task<int> DeleteWhereAsync(string tableName, string whereCol, object whereValue)
+        // CHANGED: Task to UniTask
+        public async UniTask<int> DeleteWhereAsync(string tableName, string whereCol, object whereValue)
         {
             ValidateTableName(tableName);
             ValidateColumnNames(tableName, whereCol);
 
             if (string.IsNullOrWhiteSpace(whereCol)) throw new ArgumentException("Where column cannot be null or empty.", nameof(whereCol));
 
-            return await Task.Run(() => ExecuteDbOperation(connection =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() => ExecuteDbOperation(connection =>
             {
                 string query = $"DELETE FROM {tableName} WHERE {whereCol} = @whereValue";
                 var parameters = new Dictionary<string, object>
@@ -537,11 +554,13 @@ namespace Core.Data.Impl
             }, $"executing DeleteWhere on {tableName}"));
         }
 
-        public async Task<int> ExecuteNonQueryAsync(string query, Dictionary<string, object> parameters = null)
+        // CHANGED: Task to UniTask
+        public async UniTask<int> ExecuteNonQueryAsync(string query, Dictionary<string, object> parameters = null)
         {
             if (string.IsNullOrWhiteSpace(query)) throw new ArgumentException("Query cannot be null or empty.", nameof(query));
 
-            return await Task.Run(() => ExecuteDbOperation(connection =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() => ExecuteDbOperation(connection =>
             {
                 using (var command = CreateCommand(connection, query, parameters)) // Pass null for transaction
                 {
@@ -554,9 +573,11 @@ namespace Core.Data.Impl
 
         // --- 기타 작업 ---
 
-        public async Task<long> GetLastInsertRowIdAsync()
+        // CHANGED: Task to UniTask
+        public async UniTask<long> GetLastInsertRowIdAsync()
         {
-            return await Task.Run(() => ExecuteDbOperation(connection =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(() => ExecuteDbOperation(connection =>
             {
                 long lastId = 0;
                 using (var command = CreateCommand(connection, "SELECT last_insert_rowid()")) // Pass null for transaction
@@ -573,9 +594,11 @@ namespace Core.Data.Impl
 
         // 기존 ExecuteInTransactionAsync는 유지합니다.
         // 이들은 트랜잭션의 시작, 커밋, 롤백을 내부적으로 관리하는 헬퍼 메서드로 볼 수 있습니다.
-        public async Task<T> ExecuteInTransactionAsync<T>(Func<IDbConnection, IDbTransaction, Task<T>> transactionAction, IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
+        // CHANGED: Task to UniTask and Func<..., Task<T>> to Func<..., UniTask<T>>
+        public async UniTask<T> ExecuteInTransactionAsync<T>(Func<IDbConnection, IDbTransaction, UniTask<T>> transactionAction, IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
         {
-            return await Task.Run(async () =>
+            // CHANGED: Task.Run to UniTask.RunOnThreadPool
+            return await UniTask.RunOnThreadPool(async () =>
             {
                 using (var connection = new SqliteConnection(m_ConnectionString))
                 {
@@ -605,16 +628,21 @@ namespace Core.Data.Impl
                             }
                             throw;
                         }
+                        finally
+                        {
+                            CoreLogger.Log("[DatabaseAccess] Transaction (helper) finished.");
+                        }
                     }
                 }
             });
         }
 
-        public async Task ExecuteInTransactionAsync(Func<IDbConnection, IDbTransaction, Task> transactionAction, IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
+        // CHANGED: Task to UniTask and Func<..., Task> to Func<..., UniTask>
+        public async UniTask ExecuteInTransactionAsync(Func<IDbConnection, IDbTransaction, UniTask> transactionAction, IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
         {
             await ExecuteInTransactionAsync(async (conn, trans) => {
                 await transactionAction(conn, trans);
-                return true;
+                return true; // UniTask<bool> expects a return value, so add one.
             }, isolationLevel);
         }
 
@@ -622,9 +650,6 @@ namespace Core.Data.Impl
         public void Dispose()
         {
             CoreLogger.Log("[DatabaseAccess] Dispose called. All connections opened via 'using' statements should have been returned to the pool.");
-            // Mono.Data.Sqlite의 연결 풀링 메커니즘에 따라, 각 SqliteConnection 인스턴스가 Dispose될 때
-            // 자동으로 연결이 풀에 반환되므로, DatabaseAccess 자체에서 특별히 할당 해제할 리소스는 없습니다.
-            // BeginTransactionAsync에서 생성된 connection과 transaction은 DatabaseTransaction.Dispose()에서 처리됩니다.
         }
     }
 }

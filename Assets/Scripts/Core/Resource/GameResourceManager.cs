@@ -3,12 +3,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks; // Task 사용을 위해 추가
 using Core.Interface;
 using Core.Logging;
+using Cysharp.Threading.Tasks;
 using ScriptableObjects.Abstract;
 using ScriptableObjects.Util;
-using UnityEngine;
 using UnityEngine.AddressableAssets; // Addressables 사용을 위해 추가
 using UnityEngine.ResourceManagement.AsyncOperations; // AsyncOperationHandle을 위해 추가
 
@@ -23,7 +22,7 @@ namespace Core.Resource
         private List<AsyncOperationHandle> _loadedHandles;
 
         // 컴포지션 루트에서 호출될 비동기 초기화 메서드
-        public async Task InitializeAsync() // 메서드 이름을 InitializeAsync로 변경, Task 반환
+        public async UniTask InitializeAsync() // 메서드 이름을 InitializeAsync로 변경, Task 반환
         {
             _gameDatabase = new Dictionary<string, GameData>();
             _loadedHandles = new List<AsyncOperationHandle>();

@@ -1,6 +1,6 @@
 using System;
 using System.Data;
-using System.Threading.Tasks;
+using Cysharp.Threading.Tasks;
 
 namespace Core.Data.Interface
 {
@@ -23,11 +23,11 @@ namespace Core.Data.Interface
         /// <summary>
         /// 트랜잭션 내에서 수행된 모든 작업을 비동기적으로 커밋합니다.
         /// </summary>
-        Task CommitAsync();
+        UniTask CommitAsync();
 
         /// <summary>
         /// 트랜잭션 내에서 수행된 모든 작업을 비동기적으로 롤백합니다.
         /// </summary>
-        Task RollbackAsync();
+        UniTask RollbackAsync();
     }
 }
